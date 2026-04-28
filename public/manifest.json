@@ -1,0 +1,15 @@
+{
+  "name": "SISMAP Pulse",
+  "short_name": "SISMAP",
+  "start_url": "/admin/command-center",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#3b82f6",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2991/2991148.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
