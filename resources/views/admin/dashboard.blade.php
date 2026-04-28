@@ -433,7 +433,8 @@
 
         async function loadStats() {
             try {
-                const res = await fetch('/api/dashboard/stats');
+                const timestamp = new Date().getTime();
+                const res = await fetch(`/api/dashboard/stats?t=${timestamp}`);
                 const stats = await res.json();
                 
                 document.getElementById('total_km').innerText = stats.total + " Jalan";
