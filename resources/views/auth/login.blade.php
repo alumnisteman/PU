@@ -13,8 +13,8 @@
     </style>
 </head>
 <body class="flex items-center justify-center min-h-screen p-6 overflow-hidden relative">
-    <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/10 rounded-full blur-[120px] animate-pulse"></div>
-    <div class="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-600/10 rounded-full blur-[120px] animate-pulse" style="animation-delay: 2s;"></div>
+    <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/10 rounded-full blur-[120px] animate-pulse" style="z-index:-1;pointer-events:none;"></div>
+    <div class="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-600/10 rounded-full blur-[120px] animate-pulse" style="z-index:-1;pointer-events:none;animation-delay:2s;"></div>
 
     <div class="w-full max-w-md relative z-10">
         <div class="text-center mb-10">
@@ -60,5 +60,14 @@
             &copy; 2026 North Maluku Infrastructure
         </p>
     </div>
+<script>
+// Bunuh semua Service Worker lama agar tidak ada cache yang mengganggu
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(registrations => {
+        registrations.forEach(reg => reg.unregister());
+    });
+    caches.keys().then(keys => keys.forEach(key => caches.delete(key)));
+}
+</script>
 </body>
 </html>

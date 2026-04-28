@@ -22,10 +22,24 @@
     <link href="https://unpkg.com/mapillary-js@4.1.0/dist/mapillary.css?v=1.2" rel="stylesheet" />
     <script src="https://unpkg.com/mapillary-js@4.1.0/dist/mapillary.js?v=1.2"></script>
     <style>
-        /* Force Interaction */
-        body, html { pointer-events: auto !important; }
-        #map, .leaflet-container { cursor: grab !important; pointer-events: auto !important; }
-        .flare-error-overlay, #ignition-error-button, [id^="flare"], [class^="flare"] { display: none !important; visibility: hidden !important; pointer-events: none !important; }
+        /* Global Interaction Fix */
+        html, body { pointer-events: auto !important; height: 100%; width: 100%; overflow-x: hidden; }
+        
+        /* Prioritaskan UI Resmi */
+        main { position: relative; z-index: 10 !important; pointer-events: auto !important; }
+        aside { position: relative; z-index: 50 !important; }
+        #map { z-index: 20 !important; cursor: grab !important; }
+        .leaflet-popup-pane { z-index: 700 !important; }
+        .leaflet-control-container { z-index: 800 !important; }
+
+        /* Tenggelamkan Elemen Pengganggu (Flare/Ignition/Debug) */
+        .flare-error-overlay, #ignition-error-button, [id^="flare"], [class^="flare"], .ignition-error-overlay, [id*="ignition"] { 
+            display: none !important; 
+            visibility: hidden !important; 
+            z-index: -9999 !important; 
+            pointer-events: none !important; 
+        }
+
         #map { height: 500px; border-radius: 1.5rem; }
         .mapillary-viewer { height: 300px; border-radius: 1rem; overflow: hidden; }
 
