@@ -364,10 +364,26 @@
                                 </div>
                                 <p class="text-[10px] text-slate-500 mb-3">${report.description}</p>
                                 <div class="flex flex-col gap-2">
+                                    <button onclick="loadStreetView(${lat}, ${lon})" class="w-full px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-all shadow-md shadow-blue-600/20">
+                                        Lihat Street View
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+
+                        marker.bindPopup(popupContent, {
+                            className: 'custom-popup'
+                        });
+                        
+                        markersGroup.addLayer(marker);
+                        bounds.extend([lat, lon]);
+                    }
+                });
+
+                map.addLayer(markersGroup);
 
                 // Auto-Focus: Fit map bounds to show all markers
                 if (heatData.length > 0) {
-                    const bounds = L.latLngBounds(heatData.map(d => [d[0], d[1]]));
                     map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
                 }
 
