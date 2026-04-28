@@ -8,7 +8,7 @@
 // Hardcoded credentials for remote execution
 $host = '127.0.0.1';
 $port = 3306;
-$db   = 'pu_halsel';
+$db   = 'sismap';
 $user = 'k4701531_all';
 $pass = 'mushabdatabaseall';
 

@@ -47,7 +47,7 @@ Buka file `.env` menggunakan teks editor (Notepad/VSCode/Nano) dan isi bagian da
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
-DB_DATABASE=pu_halsel     # Ganti dengan nama database Anda
+DB_DATABASE=sismap     # Ganti dengan nama database Anda
 DB_USERNAME=root          # Username database
 DB_PASSWORD=rahasia       # Password database
 ```
