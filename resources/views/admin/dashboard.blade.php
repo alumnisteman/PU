@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- PWA Support -->
-    <link rel="manifest" href="/manifest.json">
+    <link rel="manifest" href="/manifest.json?v=1.2">
     <meta name="theme-color" content="#0f172a">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -19,11 +19,13 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
-    <link href="https://unpkg.com/mapillary-js@4.1.0/dist/mapillary.css" rel="stylesheet" />
-    <script src="https://unpkg.com/mapillary-js@4.1.0/dist/mapillary.js"></script>
+    <link href="https://unpkg.com/mapillary-js@4.1.0/dist/mapillary.css?v=1.2" rel="stylesheet" />
+    <script src="https://unpkg.com/mapillary-js@4.1.0/dist/mapillary.js?v=1.2"></script>
     <style>
-        * { pointer-events: auto !important; }
-        .flare-error-overlay, #ignition-error-button { display: none !important; }
+        /* Force Interaction */
+        body, html { pointer-events: auto !important; }
+        #map, .leaflet-container { cursor: grab !important; pointer-events: auto !important; }
+        .flare-error-overlay, #ignition-error-button, [id^="flare"], [class^="flare"] { display: none !important; visibility: hidden !important; pointer-events: none !important; }
         #map { height: 500px; border-radius: 1.5rem; }
         .mapillary-viewer { height: 300px; border-radius: 1rem; overflow: hidden; }
 
