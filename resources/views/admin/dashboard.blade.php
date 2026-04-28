@@ -145,23 +145,27 @@
                 </div>
             </div>
 
-            <!-- KPI Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
-                <div class="bg-slate-800/40 border border-slate-700 p-6 rounded-2xl">
-                    <p class="text-slate-500 text-xs font-bold mb-2 uppercase tracking-widest">Total KM</p>
-                    <h2 class="text-3xl font-black" id="total_km">0 KM</h2>
+            <!-- KPI Cards (Sinkron dengan SISMAP PULSE) -->
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">
+                <div class="bg-slate-800/40 border border-slate-700 p-5 rounded-2xl col-span-1">
+                    <p class="text-slate-500 text-[10px] font-bold mb-2 uppercase tracking-widest">Total Jalan</p>
+                    <h2 class="text-3xl font-black text-white" id="total_km">-</h2>
                 </div>
-                <div class="bg-emerald-500/10 border border-emerald-500/20 p-6 rounded-2xl">
-                    <p class="text-emerald-500 text-xs font-bold mb-2 uppercase tracking-widest">Baik</p>
-                    <h2 class="text-3xl font-black text-emerald-500" id="count_baik">0</h2>
+                <div class="bg-emerald-500/10 border border-emerald-500/20 p-5 rounded-2xl">
+                    <p class="text-emerald-400 text-[10px] font-bold mb-2 uppercase tracking-widest">Baik</p>
+                    <h2 class="text-3xl font-black text-emerald-400" id="count_baik">-</h2>
                 </div>
-                <div class="bg-amber-500/10 border border-amber-500/20 p-6 rounded-2xl">
-                    <p class="text-amber-500 text-xs font-bold mb-2 uppercase tracking-widest">Sedang</p>
-                    <h2 class="text-3xl font-black text-amber-400" id="count_sedang">0</h2>
+                <div class="bg-amber-500/10 border border-amber-500/20 p-5 rounded-2xl">
+                    <p class="text-amber-400 text-[10px] font-bold mb-2 uppercase tracking-widest">Sedang</p>
+                    <h2 class="text-3xl font-black text-amber-400" id="count_sedang">-</h2>
                 </div>
-                <div class="bg-rose-500/10 border border-rose-500/20 p-6 rounded-2xl">
-                    <p class="text-rose-500 text-xs font-bold mb-2 uppercase tracking-widest">Rusak</p>
-                    <h2 class="text-3xl font-black text-rose-500" id="count_rusak">0</h2>
+                <div class="bg-orange-500/10 border border-orange-500/20 p-5 rounded-2xl">
+                    <p class="text-orange-400 text-[10px] font-bold mb-2 uppercase tracking-widest">Rusak Ringan</p>
+                    <h2 class="text-3xl font-black text-orange-400" id="count_rusak_ringan">-</h2>
+                </div>
+                <div class="bg-rose-500/10 border border-rose-500/20 p-5 rounded-2xl">
+                    <p class="text-rose-500 text-[10px] font-bold mb-2 uppercase tracking-widest">Rusak Berat</p>
+                    <h2 class="text-3xl font-black text-rose-500" id="count_rusak_berat">-</h2>
                 </div>
             </div>
 
@@ -427,11 +431,30 @@
             }
         }
 
+        async function loadStats() {
+            try {
+                const res = await fetch('/api/dashboard/stats');
+                const stats = await res.json();
+                
+                document.getElementById('total_km').innerText = stats.total + " Jalan";
+                document.getElementById('count_baik').innerText = stats.baik;
+                document.getElementById('count_sedang').innerText = stats.sedang;
+                document.getElementById('count_rusak_ringan').innerText = stats.rusak_ringan;
+                document.getElementById('count_rusak_berat').innerText = stats.rusak_berat;
+            } catch (err) {
+                console.error("Stats load failed:", err);
+            }
+        }
+
         // Initial load
         loadReports();
+        loadStats();
         
-        // Auto-refresh markers & heatmap every 30 seconds
-        setInterval(loadReports, 30000);
+        // Auto-refresh every 30 seconds
+        setInterval(() => {
+            loadReports();
+            loadStats();
+        }, 30000);
 
         // PWA Service Worker Registration
         if ('serviceWorker' in navigator) {

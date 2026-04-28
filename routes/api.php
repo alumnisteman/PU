@@ -37,6 +37,27 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
 Route::get('/roads/dashboard', [RoadController::class, 'dashboard']);
 Route::post('/gps', [App\Http\Controllers\RoadController::class, 'updateGPS'])->middleware('auth:sanctum');
 
+// Dashboard KPI Stats - langsung dari tabel roads (sumber SISMAP PULSE)
+Route::get('/dashboard/stats', function() {
+    try {
+        $stats = \Illuminate\Support\Facades\DB::table('roads')
+            ->select(\Illuminate\Support\Facades\DB::raw('`condition`, count(*) as total'))
+            ->groupBy('condition')
+            ->get()
+            ->keyBy('condition');
+
+        return response()->json([
+            'baik'         => $stats->get('baik')?->total ?? 0,
+            'sedang'       => $stats->get('sedang')?->total ?? 0,
+            'rusak_ringan' => $stats->get('rusak_ringan')?->total ?? 0,
+            'rusak_berat'  => $stats->get('rusak_berat')?->total ?? 0,
+            'total'        => \Illuminate\Support\Facades\DB::table('roads')->count(),
+        ]);
+    } catch (\Exception $e) {
+        return response()->json(['error' => $e->getMessage()], 500);
+    }
+});
+
 // Damage Reports & AI
 Route::get('/reports', [App\Http\Controllers\DamageReportController::class, 'index']);
 Route::post('/reports', [App\Http\Controllers\DamageReportController::class, 'store'])->middleware('auth:sanctum');
