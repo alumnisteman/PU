@@ -44,13 +44,15 @@ Route::get('/dashboard/stats', function() {
             ->select(\Illuminate\Support\Facades\DB::raw('`condition`, count(*) as total'))
             ->groupBy('condition')
             ->get()
-            ->keyBy('condition');
+            ->mapWithKeys(function ($item) {
+                return [strtolower($item->condition) => $item->total];
+            });
 
         return response()->json([
-            'baik'         => $stats->get('baik')?->total ?? 0,
-            'sedang'       => $stats->get('sedang')?->total ?? 0,
-            'rusak_ringan' => $stats->get('rusak_ringan')?->total ?? 0,
-            'rusak_berat'  => $stats->get('rusak_berat')?->total ?? 0,
+            'baik'         => $stats->get('baik') ?? 0,
+            'sedang'       => $stats->get('sedang') ?? 0,
+            'rusak_ringan' => $stats->get('rusak_ringan') ?? 0,
+            'rusak_berat'  => $stats->get('rusak_berat') ?? 0,
             'total'        => \Illuminate\Support\Facades\DB::table('roads')->count(),
         ]);
     } catch (\Exception $e) {
