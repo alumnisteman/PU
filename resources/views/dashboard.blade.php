@@ -33,12 +33,29 @@
             </div>
 
             <div class="flex items-center gap-4">
-                <button class="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition-all">
-                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                    </svg>
-                </button>
-                <div class="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-600/20">A</div>
+                @auth
+                    <div class="flex items-center gap-3">
+                        <div class="text-right hidden sm:block">
+                            <div class="text-[10px] font-black text-indigo-400 uppercase tracking-widest">{{ optional(auth()->user()->level)->level_name ?? 'Level' }}</div>
+                            <div class="text-xs font-bold text-white">{{ optional(auth()->user())->user_fullname ?? 'User' }}</div>
+                        </div>
+                        <div class="group relative">
+                            <button class="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-600/20 border-2 border-white/10 hover:border-indigo-400 transition-all">
+                                {{ substr(optional(auth()->user())->user_fullname ?? 'U', 0, 1) }}
+                            </button>
+                            <div class="absolute right-0 mt-2 w-48 bg-slate-800 border border-white/10 rounded-2xl shadow-2xl py-2 invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all z-50 overflow-hidden">
+                                <a href="{{ route('admin.dashboard') }}" class="block px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-white">Admin Portal</a>
+                                <hr class="my-2 border-white/5">
+                                <form action="{{ route('logout') }}" method="POST">
+                                    @csrf
+                                    <button type="submit" class="w-full text-left px-4 py-2 text-sm text-rose-400 hover:bg-rose-500/10 transition-colors">Logout</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                @else
+                    <a href="{{ route('login') }}" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-xl shadow-lg shadow-indigo-600/20 transition-all">Login</a>
+                @endauth
             </div>
         </div>
     </header>
@@ -47,8 +64,8 @@
         <!-- Welcome Hero -->
         <div class="relative overflow-hidden bg-gradient-to-br from-indigo-600/20 to-purple-600/20 rounded-[2.5rem] p-8 md:p-12 mb-10 border border-white/5">
             <div class="relative z-10 max-w-2xl">
-                <h2 class="text-4xl md:text-5xl font-extrabold text-white mb-4 leading-tight">Selamat Datang di <br/> <span class="text-indigo-400">Sistem Informasi Aset Jalan</span></h2>
-                <p class="text-slate-400 text-lg mb-8 leading-relaxed">Kelola, pantau, dan analisis seluruh infrastruktur aset jalan dan jembatan dalam satu platform modern yang terintegrasi.</p>
+                <h2 class="text-4xl md:text-5xl font-extrabold text-white mb-4 leading-tight">North Maluku <br/> <span class="text-indigo-400">Infrastructure Control Center</span></h2>
+                <p class="text-slate-400 text-lg mb-8 leading-relaxed">Pusat Kendali Terpadu Infrastruktur Jalan dan Jembatan Maluku Utara.</p>
                 
                 <form action="{{ route('admin.dashboard') }}" method="GET" class="relative max-w-md mb-8 group">
                     <input type="text" name="q" value="{{ $search }}" placeholder="Cari Nama Jalan atau Jembatan..." class="w-full bg-slate-900/80 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white focus:ring-2 focus:ring-indigo-500 transition-all group-hover:border-white/20">

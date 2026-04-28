@@ -3,37 +3,26 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Laravel\Scout\Searchable;
-use MatanYadaev\EloquentSpatial\Objects\Point;
-use MatanYadaev\EloquentSpatial\Traits\HasSpatial;
 
 class DamageReport extends Model
 {
-    use Searchable, HasSpatial;
-
     protected $fillable = [
-        'road_id', 'damage_type', 'geom', 'accuracy', 'source', 'details'
+        'road_asset_id', 'user_id', 'title', 'description', 
+        'severity', 'status', 'latitude', 'longitude'
     ];
 
-    protected $casts = [
-        'geom' => Point::class,
-        'details' => 'array',
-        'accuracy' => 'float',
-    ];
-
-    public function toSearchableArray()
+    public function roadAsset()
     {
-        return [
-            'id' => $this->id,
-            'damage_type' => $this->damage_type,
-            'source' => $this->source,
-            'road_id' => $this->road_id,
-            'road_name' => $this->road ? $this->road->name : null,
-        ];
+        return $this->belongsTo(RoadAsset::class, 'road_asset_id');
     }
 
-    public function road()
+    public function user()
     {
-        return $this->belongsTo(Road::class);
+        return $this->belongsTo(User::class);
+    }
+
+    public function photos()
+    {
+        return $this->hasMany(DamagePhoto::class);
     }
 }

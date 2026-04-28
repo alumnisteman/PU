@@ -11,7 +11,7 @@ class AuthController extends Controller
 {
     public function showLoginForm()
     {
-        return view('welcome'); // Or a dedicated login view if created
+        return view('auth.login');
     }
 
     public function register(Request $req)
@@ -35,20 +35,19 @@ class AuthController extends Controller
 
     public function login(Request $req)
     {
-        $req->validate([
+        $credentials = $req->validate([
             'email' => 'required|email',
             'password' => 'required',
         ]);
 
-        $user = User::where('user_email', $req->email)->first();
-
-        if (!$user || !Hash::check($req->password, $user->user_password)) {
-            return response()->json(['message' => 'Unauthorized'], 401);
+        if (Auth::attempt(['user_email' => $credentials['email'], 'password' => $credentials['password']])) {
+            $req->session()->regenerate();
+            return redirect()->intended('/admin');
         }
 
-        $token = $user->createToken('api-token')->plainTextToken;
-
-        return response()->json(['token' => $token]);
+        return back()->withErrors([
+            'email' => 'The provided credentials do not match our records.',
+        ])->onlyInput('email');
     }
 
     public function logout(Request $req)
@@ -60,7 +59,9 @@ class AuthController extends Controller
         
         // For Web session
         Auth::logout();
+        $req->session()->invalidate();
+        $req->session()->regenerateToken();
 
-        return response()->json(['message' => 'Logged out']);
+        return redirect('/');
     }
 }

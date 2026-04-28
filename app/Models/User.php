@@ -49,6 +49,21 @@ class User extends Authenticatable
     {
         return $this->user_password;
     }
+
+    public function getAuthPasswordName()
+    {
+        return 'user_password';
+    }
+
+    public function getPasswordAttribute()
+    {
+        return $this->user_password;
+    }
+
+    public function setPasswordAttribute($value)
+    {
+        $this->attributes['user_password'] = $value;
+    }
     
     public function level()
     {
@@ -64,7 +79,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
-            'password' => 'hashed',
+            'user_password' => 'hashed',
         ];
     }
 }

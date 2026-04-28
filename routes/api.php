@@ -6,6 +6,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UploadController;
 use App\Http\Controllers\WilayahController;
 use App\Http\Controllers\RoadController;
+use App\Http\Controllers\DamageReportController;
 
 /*
 |--------------------------------------------------------------------------
@@ -36,6 +37,10 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
 Route::get('/roads/dashboard', [RoadController::class, 'dashboard']);
 Route::post('/gps', [App\Http\Controllers\RoadController::class, 'updateGPS'])->middleware('auth:sanctum');
 
+// Damage Reports & AI
+Route::get('/reports', [App\Http\Controllers\DamageReportController::class, 'index']);
+Route::post('/reports', [App\Http\Controllers\DamageReportController::class, 'store'])->middleware('auth:sanctum');
+
 Route::get('/segments', function(Request $request){
     try {
         if (!$request->has('bbox')) return response()->json(['type'=>'FeatureCollection', 'features'=>[]]);
@@ -43,7 +48,7 @@ Route::get('/segments', function(Request $request){
         $bbox = explode(',', $bboxStr);
         if (count($bbox) !== 4) return response()->json(['type'=>'FeatureCollection', 'features'=>[]]);
         
-        return Illuminate\Support\Facades\Cache::remember("segments_bbox_{$bboxStr}", 60, function() use ($bbox) {
+        return Illuminate\Support\Facades\Cache::remember("segments_bbox_{$bboxStr}", 60, function() use ($bbox, $request) {
             [$minLon, $minLat, $maxLon, $maxLat] = $bbox;
             $polygon = "POLYGON(($minLat $minLon, $minLat $maxLon, $maxLat $maxLon, $maxLat $minLon, $minLat $minLon))";
 
@@ -128,3 +133,7 @@ Route::post('/road-assets', [RoadController::class, 'storeAsset']);
 // Endpoint untuk update kondisi road_asset langsung dari map
 Route::patch('/road-assets/{id}/condition', [RoadController::class, 'updateAssetCondition']);
 Route::get('/road-assets/{id}', [RoadController::class, 'getAsset']);
+
+// North Maluku Infrastructure Expansion (Reports & AI)
+Route::post('/reports', [DamageReportController::class, 'store']);
+Route::get('/reports', [DamageReportController::class, 'index']);

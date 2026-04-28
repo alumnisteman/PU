@@ -51,11 +51,25 @@
       </div>
     </div>
 
+    <!-- AI Analytics / Severity Distribution -->
+    <div class="p-4 border-b border-slate-800/60 bg-indigo-500/5">
+      <h3 class="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-3">AI Severity Distribution</h3>
+      <div class="space-y-2">
+        <div v-for="(count, type) in aiStats" :key="type" class="flex items-center gap-3">
+          <span class="text-[10px] text-slate-400 w-20 capitalize">{{ type }}</span>
+          <div class="flex-grow h-1.5 bg-slate-800 rounded-full overflow-hidden">
+            <div class="h-full bg-indigo-500" :style="{ width: (count / 10 * 100) + '%' }"></div>
+          </div>
+          <span class="text-[10px] font-bold text-slate-500">{{ count }}</span>
+        </div>
+      </div>
+    </div>
+
     <!-- Damage Reports / Search Results -->
     <div class="flex-grow overflow-hidden flex flex-col p-4">
       <h3 class="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
         <span class="w-1.5 h-1.5 rounded-full animate-pulse" :class="searchQuery ? 'bg-indigo-500' : 'bg-red-500'"></span>
-        {{ searchQuery ? 'Hasil Pencarian' : 'Kerusakan Terdeteksi' }}
+        {{ searchQuery ? 'Hasil Pencarian' : 'Intelligence Feed (AI Verified)' }}
       </h3>
       
       <div class="overflow-y-auto space-y-2.5 pr-1 flex-grow" style="-webkit-overflow-scrolling:touch;scrollbar-width:thin;scrollbar-color:#1e293b transparent">
@@ -111,6 +125,7 @@
 import { ref, onMounted, computed } from 'vue';
 
 const stats = ref({ baik: 0, sedang: 0, rusak_ringan: 0, rusak_berat: 0 });
+const aiStats = ref({});
 const damageReports = ref([]);
 const searchQuery = ref('');
 const isSearching = ref(false);
@@ -128,12 +143,13 @@ async function loadData(query = '') {
     const data = await res.json();
     
     stats.value = data.condition_stats;
+    aiStats.value = data.ai_stats || {};
     
     // If searching, show all matching roads. If not, only show roads with damage
     if (query) {
        damageReports.value = data.damage_reports || [];
     } else {
-       damageReports.value = (data.damage_reports || []).filter(r => r.damage_type);
+       damageReports.value = (data.damage_reports || []);
     }
     
     isSearching.value = false;

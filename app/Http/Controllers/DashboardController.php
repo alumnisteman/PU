@@ -11,6 +11,9 @@ class DashboardController extends Controller
 {
     public function index(Request $request)
     {
+        if (!auth()->check()) {
+            return redirect()->route('login');
+        }
         return view('admin.dashboard');
     }
 }

@@ -42,4 +42,9 @@ class RoadAsset extends Model
     {
         return $this->belongsTo(Region::class);
     }
+
+    public function reports()
+    {
+        return $this->hasMany(DamageReport::class, 'road_asset_id');
+    }
 }

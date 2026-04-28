@@ -35,4 +35,8 @@ return [
         ],
     ],
 
+    'mapillary' => [
+        'token' => env('MAPILLARY_TOKEN'),
+    ],
+
 ];

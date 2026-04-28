@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Models\Road;
+use App\Models\RoadAsset;
+use App\Models\DamageReport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
@@ -63,20 +65,23 @@ class RoadController extends Controller
                 ->get();
 
             $stats = [
-                'baik' => 0, 'sedang' => 0, 'rusak' => 0, 'rusak_ringan' => 0, 'rusak_berat' => 0, 'total_km' => 0, 'total_ruas' => 0
+                'baik' => 0, 'sedang' => 0, 'rusak_ringan' => 0, 'rusak_berat' => 0, 'total_km' => 0, 'total_ruas' => 0
             ];
 
             foreach ($assetStats as $s) {
-                $cond = strtolower($s->condition_status);
-                $stats[$cond] = $s->count;
+                $cond = strtolower(str_replace(' ', '_', $s->condition_status));
+                if ($cond === 'rusak') $cond = 'rusak_berat';
+                
+                if (isset($stats[$cond])) {
+                    $stats[$cond] += $s->count;
+                } else {
+                    $stats[$cond] = $s->count;
+                }
                 $stats['total_km'] += $s->total_km;
             }
             
-            // Handle categories for backward compatibility with frontend
-            $stats['rusak_berat'] = $stats['rusak'];
-            $stats['rusak'] = $stats['rusak'] + $stats['rusak_ringan']; 
-            
-            $stats['total_km'] = round($stats['total_km'], 2);
+            $stats['rusak'] = ($stats['rusak_ringan'] ?? 0) + ($stats['rusak_berat'] ?? 0);
+            $stats['total_km'] = round($stats['total_km'], 1);
             $stats['total_ruas'] = DB::table('road_assets')->count();
 
             // 2. Priority Roads from road_assets
@@ -122,7 +127,31 @@ class RoadController extends Controller
                 'total_ruas'      => $stats['total_ruas'],
                 'condition_stats' => $stats,
                 'priority_roads'  => $roadsData->values(),
-                'village_stats'   => $villageStats
+                'village_stats'   => $villageStats,
+                'damaged_roads'   => DB::table('road_assets')
+                    ->whereIn(DB::raw('LOWER(condition_status)'), ['rusak', 'rusak_ringan', 'rusak_berat'])
+                    ->select('id', 'road_name as name', 'latitude as lat', 'longitude as lng', 'condition_status as condition')
+                    ->get(),
+                'damage_reports' => DamageReport::with(['photos.aiAnalysis', 'roadAsset'])
+                    ->latest()
+                    ->limit(10)
+                    ->get()
+                    ->map(fn($r) => [
+                        'id' => $r->id,
+                        'name' => $r->roadAsset->road_name,
+                        'code' => $r->roadAsset->road_code,
+                        'condition' => $r->severity,
+                        'damage_type' => $r->photos->first()?->aiAnalysis?->damage_type ?? 'Awaiting AI...',
+                        'damage_details' => [
+                            'confidence' => ($r->photos->first()?->aiAnalysis?->confidence ?? 0) . '%',
+                            'severity_score' => $r->photos->first()?->aiAnalysis?->severity_score ?? 0,
+                            'status' => $r->status
+                        ]
+                    ]),
+                'ai_stats' => DB::table('ai_analysis')
+                    ->select('damage_type', DB::raw('COUNT(*) as count'))
+                    ->groupBy('damage_type')
+                    ->pluck('count', 'damage_type')
             ];
         });
 

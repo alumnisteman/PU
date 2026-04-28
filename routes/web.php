@@ -34,7 +34,7 @@ Route::post('/logout',[AuthController::class, 'logout'])->name('logout');
 | Route names match existing view references (no admin. prefix needed)
 |--------------------------------------------------------------------------
 */
-Route::prefix('admin')->group(function () {
+Route::prefix('admin')->middleware('auth')->group(function () {
 
     // Dashboard
     Route::get('/',         [DashboardController::class, 'index'])->name('admin.dashboard');

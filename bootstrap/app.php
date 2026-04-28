@@ -16,4 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //
+    })
+    ->withSchedule(function ($schedule) {
+        $schedule->command('sismap:sync-roads')->everyFiveMinutes()->runInBackground();
     })->create();

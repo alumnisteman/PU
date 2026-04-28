@@ -21,6 +21,7 @@ let assetLayerMap = {}; // { assetId: [segmentId, ...] } — asset ke segments
 let socket;
 let damagedTourIndex = 0;
 let damagedTourInterval = null;
+let damagedRoads = [];
 
 // ─── WARNA KONDISI ──────────────────────────────────────────────
 function getColor(c) {
@@ -181,6 +182,9 @@ async function loadData() {
 
     if (data.users) {
       data.users.forEach(u => updateMarker(u));
+    }
+    if (data.damaged_roads) {
+      damagedRoads = data.damaged_roads;
     }
     // Roads/segments di-load via loadSegments() secara terpisah (map bounds)
   } catch (err) {
@@ -402,27 +406,52 @@ function reportGPS() {
 
 // ─── ZOOM TOUR: NAVIGASI JALAN RUSAK ─────────────────────────────
 function tourDamaged() {
-  const damaged = Object.values(roadLayers).filter(l => isDamaged(l.options.condition));
-  if (damaged.length === 0) return alert('Tidak ada jalan rusak saat ini.');
+  if (damagedRoads.length === 0) {
+    showToast('Tidak ada jalan rusak yang terdeteksi di sistem.', 'info');
+    return;
+  }
 
   if (damagedTourInterval) {
     clearInterval(damagedTourInterval);
     damagedTourInterval = null;
-    return; // toggle off
+    showToast('Navigasi dihentikan.', 'info');
+    return;
   }
 
+  showToast(`Memulai navigasi: ${damagedRoads.length} titik jalan rusak.`, 'success');
   damagedTourIndex = 0;
+  
   const next = () => {
-    const layer = damaged[damagedTourIndex % damaged.length];
-    map.fitBounds(layer.getBounds(), { padding: [150, 150], maxZoom: 17 });
-    layer.openPopup();
+    const road = damagedRoads[damagedTourIndex % damagedRoads.length];
+    
+    // Zoom ke lokasi jalan rusak
+    map.setView([road.lat, road.lng], 18, { animate: true, duration: 1.5 });
+    
+    // Tunggu map loading segmen, lalu buka popup jika ketemu
+    setTimeout(() => {
+      const segIds = assetLayerMap[road.id] || [];
+      for (const sid of segIds) {
+        const layer = roadLayers[sid];
+        if (layer) {
+          layer.openPopup();
+          break;
+        }
+      }
+    }, 1200);
+
     damagedTourIndex++;
   };
+
   next();
-  damagedTourInterval = setInterval(next, 5000);
+  damagedTourInterval = setInterval(next, 6000); // Ganti tiap 6 detik
+
+  // Matikan otomatis jika user menggerakkan peta secara manual
   map.once('movestart', () => {
-    clearInterval(damagedTourInterval);
-    damagedTourInterval = null;
+    if (damagedTourInterval) {
+      clearInterval(damagedTourInterval);
+      damagedTourInterval = null;
+      console.log('[SISMAP] Tour stopped by user movement');
+    }
   });
 }
 

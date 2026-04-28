@@ -1,15 +1,17 @@
 {
-  "name": "SISMAP Pulse",
+  "name": "SISMAP ICC",
   "short_name": "SISMAP",
-  "start_url": "/admin/command-center",
+  "description": "Infrastructure Control Center North Maluku",
+  "start_url": "/admin",
   "display": "standalone",
   "background_color": "#0f172a",
-  "theme_color": "#3b82f6",
+  "theme_color": "#2563eb",
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/2991/2991148.png",
+      "src": "https://cdn-icons-png.flaticon.com/512/2555/2555013.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }
