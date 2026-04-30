@@ -16,7 +16,7 @@
         }
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SISMAP Modern v1.1 | Admin Infrastructure Control Center</title>
+    <title>SISMAP Modern v1.2 (LATEST) | Admin Infrastructure Control Center</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Map Libraries -->
@@ -230,11 +230,35 @@
 
         function initMap() {
             try {
-                // Initialize map inside the new layout
-                map = L.map('map', { zoomControl: false, attributionControl: false }).setView([-0.7893, 127.3750], 12);
-                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+                // Base Layers
+                const streets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; OpenStreetMap contributors'
+                });
                 
-                // Add zoom control at top right
+                const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+                });
+
+                const dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                    attribution: '&copy; CARTO'
+                });
+
+                // Initialize map with Street view as default
+                map = L.map('map', { 
+                    zoomControl: false, 
+                    attributionControl: false,
+                    layers: [streets] 
+                }).setView([-0.7893, 127.3750], 12);
+                
+                // Add Layer Control
+                const baseMaps = {
+                    "Street View": streets,
+                    "Satellite View": satellite,
+                    "Dark Mode": dark
+                };
+                L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
+                
+                // Add zoom control
                 L.control.zoom({ position: 'topright' }).addTo(map);
                 
                 markersGroup = L.markerClusterGroup().addTo(map);
