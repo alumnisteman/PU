@@ -143,7 +143,7 @@ class RoadController extends Controller
                 )
                 ->groupBy('road_name')
                 ->orderByDesc('priority_score')
-                ->limit(10)
+                ->limit(100)
                 ->get()
                 ->map(fn($r) => [
                     'id' => $r->road_name, // Use name as ID for grouping

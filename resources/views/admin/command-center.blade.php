@@ -454,22 +454,49 @@
                     });
                 }
 
-                // Update Priority List in Right Panel
+                // Update Priority List & Map Markers
                 const listEl = document.getElementById('priority_list');
                 if(listEl) {
                     listEl.innerHTML = '';
+                    
+                    // Clear existing markers to prevent duplicates
+                    if(markersGroup) markersGroup.clearLayers();
+
                     if(data.priority_roads.length === 0) {
                         listEl.innerHTML = '<div class="p-8 text-center text-slate-500 text-xs italic">Semua infrastruktur dalam kondisi baik.</div>';
                     }
 
-                    // Heatmap data
-                    if(heatLayer) {
-                        const heatPoints = data.priority_roads
-                            .filter(r => r.condition === 'rusak_berat' && r.lat && r.lng)
-                            .map(r => [r.lat, r.lng, 1.0]);
-                        heatLayer.setLatLngs(heatPoints);
-                    }
-                    data.priority_roads.slice(0, 15).forEach((road, index) => {
+                    data.priority_roads.forEach((road, index) => {
+                        // 1. Add Marker to Map
+                        if (road.lat && road.lng) {
+                            const colorMap = {
+                                'baik': '#10b981',
+                                'sedang': '#f59e0b',
+                                'rusak_ringan': '#f97316',
+                                'rusak_berat': '#e11d48'
+                            };
+                            const color = colorMap[road.condition] || '#10b981';
+                            
+                            const markerIcon = L.divIcon({
+                                className: 'custom-road-marker',
+                                html: `<div class="w-4 h-4 rounded-full border-2 border-white shadow-lg" style="background-color: ${color}"></div>`,
+                                iconSize: [16, 16],
+                                iconAnchor: [8, 8]
+                            });
+
+                            const marker = L.marker([road.lat, road.lng], { icon: markerIcon })
+                                .bindPopup(`
+                                    <div class="p-2 min-w-[150px]">
+                                        <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">${road.code}</div>
+                                        <div class="text-sm font-black text-slate-800 mb-1">${road.name}</div>
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-2 h-2 rounded-full" style="background-color: ${color}"></div>
+                                            <span class="text-[10px] font-bold uppercase" style="color: ${color}">${road.condition.replace('_', ' ')}</span>
+                                        </div>
+                                    </div>
+                                `);
+                            markersGroup.addLayer(marker);
+                        }
                         const budgetJuta = (road.estimated_budget / 1000000).toFixed(1);
                         const isCritical = road.condition === 'rusak_berat';
                         
