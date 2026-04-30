@@ -381,8 +381,24 @@
                 });
                 const result = await res.json();
                 if (result.success) {
-                    alert('Jalan dan batas berhasil didaftarkan!');
-                    toggleRegistrationMode();
+                    alert('Jalan berhasil didaftarkan!');
+                
+                    // RESET & REFRESH
+                    registrationMode = false;
+                    if (registrationLine) map.removeLayer(registrationLine);
+                    if (tempMarker) map.removeLayer(tempMarker);
+                    registrationPoints = [];
+                    map.getContainer().style.cursor = '';
+                    document.getElementById('map-instruction').classList.add('hidden');
+                    
+                    // Reset button style
+                    const btn = document.querySelector('button[onclick="toggleRegistrationMode()"]');
+                    if(btn) {
+                        btn.classList.remove('bg-emerald-600', 'text-white', 'ring-4', 'ring-emerald-500/30');
+                        btn.innerHTML = '<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Register Road';
+                    }
+
+                    // FORCE REFRESH DATA
                     loadData(); 
                 } else {
                     alert('Gagal: ' + (result.error || 'Terjadi kesalahan'));
