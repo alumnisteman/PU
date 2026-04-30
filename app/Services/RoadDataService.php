@@ -15,7 +15,12 @@ class RoadDataService
     public static function registerRoad(array $data)
     {
         return DB::transaction(function() use ($data) {
-            $name = $data['name'];
+            $name = trim($data['name']);
+            // Normalize: Ensure "Jalan " prefix exists for consistent joining
+            if (!str_starts_with(strtolower($name), 'jalan')) {
+                $name = 'Jalan ' . $name;
+            }
+
             $lat = $data['lat'];
             $lng = $data['lng'];
             $condition = $data['condition'] ?? 'baik';
@@ -28,7 +33,6 @@ class RoadDataService
             foreach($coords as $c) {
                 $wktPoints[] = "{$c[0]} {$c[1]}";
             }
-            // If only one point, duplicate it to make it a valid (albeit zero-length) line
             if (count($wktPoints) === 1) $wktPoints[] = $wktPoints[0];
             $wktLine = "LINESTRING(" . implode(", ", $wktPoints) . ")";
 
@@ -47,7 +51,7 @@ class RoadDataService
 
             // 2. Insert into roads (SISMAP PULSE Integration)
             DB::table('roads')->updateOrInsert(
-                ['id' => $assetId],
+                ['name' => $name],
                 [
                     'name' => $name,
                     'code' => $code,
@@ -58,7 +62,7 @@ class RoadDataService
                     'geometry' => json_encode(['type' => 'LineString', 'coordinates' => $coords]),
                     'geom' => DB::raw("ST_SRID(ST_GeomFromText('$wktLine'), 4326)"),
                     'updated_at' => now(),
-                    'created_at' => DB::raw('COALESCE(created_at, NOW())')
+                    'created_at' => now()
                 ]
             );
 
