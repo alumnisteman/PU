@@ -158,17 +158,22 @@ class RoadController extends Controller
                     ]);
             } catch (\Exception $e) {}
 
-            return response()->json([
-                'total_km'        => round($stats['total_km'], 2),
-                'total_ruas'      => $stats['total_ruas'],
-                'condition_stats' => $stats,
-                'priority_roads'  => $roadsData->values(),
-                'village_stats'   => $villageStats,
-                'damaged_roads'   => [],
-                'damage_reports'  => [],
-                'ai_stats'        => [],
-                'users'           => User::whereNotNull('lat')->get(['user_id as id', 'user_name as name', 'lat', 'lng', 'accuracy'])
-            ]);
+                return response()->json([
+                    'total_km'        => round($stats['total_km'], 2),
+                    'total_ruas'      => $stats['total_ruas'],
+                    'condition_stats' => $stats,
+                    'priority_roads'  => $roadsData->values(),
+                    'all_roads'       => DB::table('roads')->select('name', 'geometry', 'condition')->get()->map(fn($r) => [
+                        'name' => $r->name,
+                        'condition' => $r->condition,
+                        'geometry' => json_decode($r->geometry)
+                    ]),
+                    'village_stats'   => $villageStats,
+                    'damaged_roads'   => [],
+                    'damage_reports'  => [],
+                    'ai_stats'        => [],
+                    'users'           => User::whereNotNull('lat')->get(['user_id as id', 'user_name as name', 'lat', 'lng', 'accuracy'])
+                ]);
         } catch (\Exception $e) {
             return response()->json([
                 'error' => $e->getMessage(),

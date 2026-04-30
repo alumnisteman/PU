@@ -512,44 +512,42 @@
                     }
 
                     console.log("📥 Dashboard Data Received:", data.priority_roads);
+                    // 1. Render ALL Road Paths (LineStrings)
+                    if (data.all_roads) {
+                        data.all_roads.forEach(road => {
+                            if (road.geometry && road.geometry.type === 'LineString') {
+                                const cMap = { 'baik': '#10b981', 'sedang': '#f59e0b', 'rusak_ringan': '#f97316', 'rusak_berat': '#e11d48' };
+                                const color = cMap[road.condition] || '#10b981';
+                                const latlngs = road.geometry.coordinates.map(c => [c[1], c[0]]);
+                                
+                                const polyline = L.polyline(latlngs, {
+                                    color: color, weight: 6, opacity: 0.8, lineJoin: 'round'
+                                }).addTo(markersGroup);
+
+                                // Add permanent floating label at the center
+                                const center = polyline.getBounds().getCenter();
+                                const labelIcon = L.divIcon({
+                                    className: 'road-label-container',
+                                    html: `<div class="road-label">${road.name}</div>`,
+                                    iconSize: [120, 24],
+                                    iconAnchor: [60, 12]
+                                });
+                                L.marker(center, { icon: labelIcon, interactive: false }).addTo(markersGroup);
+                            }
+                        });
+                    }
+
+                    // 2. Render Markers & List Items for Priority Roads
                     data.priority_roads.forEach((road, index) => {
-                        console.log(`🛣️ Processing: ${road.name}`, road.geometry);
-                        const colorMap = {
-                            'baik': '#10b981',
-                            'sedang': '#f59e0b',
-                            'rusak_ringan': '#f97316',
-                            'rusak_berat': '#e11d48'
-                        };
+                        const colorMap = { 'baik': '#10b981', 'sedang': '#f59e0b', 'rusak_ringan': '#f97316', 'rusak_berat': '#e11d48' };
                         const color = colorMap[road.condition] || '#10b981';
 
-                        // 1. Render Road Path (LineString) if available
-                        if (road.geometry && road.geometry.type === 'LineString') {
-                            const latlngs = road.geometry.coordinates.map(c => [c[1], c[0]]);
-                            const polyline = L.polyline(latlngs, {
-                                color: color,
-                                weight: 6,
-                                opacity: 0.6,
-                                lineJoin: 'round'
-                            }).addTo(markersGroup);
-
-                            // Add permanent label at the center of the polyline
-                            const center = polyline.getBounds().getCenter();
-                            const labelIcon = L.divIcon({
-                                className: 'road-label-container',
-                                html: `<div class="road-label">${road.name}</div>`,
-                                iconSize: [100, 20],
-                                iconAnchor: [50, 10]
-                            });
-                            L.marker(center, { icon: labelIcon, interactive: false }).addTo(markersGroup);
-                        }
-
-                        // 2. Add Marker to Map
+                        // 2a. Add Marker to Map
                         if (road.lat && road.lng) {
                             const markerIcon = L.divIcon({
                                 className: 'custom-road-marker',
                                 html: `<div class="w-4 h-4 rounded-full border-2 border-white shadow-lg" style="background-color: ${color}"></div>`,
-                                iconSize: [16, 16],
-                                iconAnchor: [8, 8]
+                                iconSize: [16, 16], iconAnchor: [8, 8]
                             });
 
                             const marker = L.marker([road.lat, road.lng], { icon: markerIcon })
@@ -565,10 +563,10 @@
                                 `);
                             markersGroup.addLayer(marker);
                         }
+
+                        // 2b. Add to List
                         const budgetJuta = (road.estimated_budget / 1000000).toFixed(1);
                         const isCritical = road.condition === 'rusak_berat';
-                        
-                        // Focus Map on click
                         const clickHandler = `map.setView([${road.lat || -0.7893}, ${road.lng || 127.3750}], 17, {animate:true});`;
                         
                         listEl.innerHTML += `
