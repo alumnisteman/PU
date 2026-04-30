@@ -78,124 +78,106 @@ class RoadController extends Controller
     public function dashboard(Request $request)
     {
         $searchQuery = $request->q;
-        $cacheKey = 'dashboard_data_v2_' . ($searchQuery ?: 'none');
 
         try {
-            return Cache::remember($cacheKey, 10, function() use ($searchQuery) {
-                // 1. Stats from road_assets
-                $assetStats = DB::table('road_assets')
-                    ->select('condition_status', DB::raw('count(*) as count'))
-                    ->groupBy('condition_status')
-                    ->get();
+            // 1. Stats from road_assets
+            $assetStats = DB::table('road_assets')
+                ->select('condition_status as cond', DB::raw('count(*) as count'))
+                ->groupBy('condition_status')
+                ->get();
 
-                $stats = ['baik' => 0, 'sedang' => 0, 'rusak_ringan' => 0, 'rusak_berat' => 0, 'total_km' => 0, 'total_ruas' => 0];
-                foreach ($assetStats as $s) {
-                    $c = strtolower($s->condition_status);
-                    if (isset($stats[$c])) $stats[$c] = $s->count;
-                }
-                $stats['total_ruas'] = DB::table('road_assets')->count();
-                $stats['total_km'] = DB::table('road_assets')->sum('length_km');
-                $stats['rusak'] = ($stats['rusak_ringan'] ?? 0) + ($stats['rusak_berat'] ?? 0);
+            $stats = ['baik' => 0, 'sedang' => 0, 'rusak_ringan' => 0, 'rusak_berat' => 0, 'total_km' => 0, 'total_ruas' => 0];
+            foreach ($assetStats as $s) {
+                $c = strtolower($s->cond);
+                if (isset($stats[$c])) $stats[$c] = $s->count;
+            }
+            $stats['total_ruas'] = DB::table('road_assets')->count();
+            $stats['total_km'] = DB::table('road_assets')->sum('length_km');
+            $stats['rusak'] = ($stats['rusak_ringan'] ?? 0) + ($stats['rusak_berat'] ?? 0);
 
-                // 2. Priority Roads with Geometry
-                $query = DB::table('road_assets')
-                    ->leftJoin('roads', 'road_assets.road_name', '=', 'roads.name')
-                    ->select(
-                        'road_assets.road_name as asset_name', 
-                        DB::raw('MAX(road_assets.road_code) as road_code'),
-                        DB::raw('MAX(road_assets.condition_status) as condition_status'),
-                        DB::raw('SUM(road_assets.length_km) as total_length'),
-                        DB::raw('AVG(COALESCE(NULLIF(road_assets.width_m, 0), 6)) as avg_width'),
-                        DB::raw('MAX(road_assets.latitude) as lat'),
-                        DB::raw('MAX(road_assets.longitude) as lng'),
-                        DB::raw('MAX(roads.geometry) as geometry'),
-                        DB::raw('
-                            MAX(CASE 
-                                WHEN LOWER(road_assets.condition_status) = "rusak_berat" THEN 90
-                                WHEN LOWER(road_assets.condition_status) = "rusak_ringan" THEN 70
-                                WHEN LOWER(road_assets.condition_status) = "rusak" THEN 80
-                                WHEN LOWER(road_assets.condition_status) = "sedang" THEN 40
-                                ELSE 10 
-                            END) as priority_score
-                        ')
-                    )
-                    ->groupBy('road_assets.road_name');
+            // 2. Priority Roads with Geometry
+            $query = DB::table('road_assets')
+                ->leftJoin('roads', 'road_assets.road_name', '=', 'roads.name')
+                ->select(
+                    'road_assets.road_name as asset_name', 
+                    DB::raw('MAX(road_assets.road_code) as road_code'),
+                    DB::raw('MAX(road_assets.condition_status) as condition_status'),
+                    DB::raw('SUM(road_assets.length_km) as total_length'),
+                    DB::raw('AVG(COALESCE(NULLIF(road_assets.width_m, 0), 6)) as avg_width'),
+                    DB::raw('MAX(road_assets.latitude) as lat'),
+                    DB::raw('MAX(road_assets.longitude) as lng'),
+                    DB::raw('MAX(roads.geometry) as geometry'),
+                    DB::raw('
+                        MAX(CASE 
+                            WHEN LOWER(road_assets.condition_status) = "rusak_berat" THEN 90
+                            WHEN LOWER(road_assets.condition_status) = "rusak_ringan" THEN 70
+                            WHEN LOWER(road_assets.condition_status) = "rusak" THEN 80
+                            WHEN LOWER(road_assets.condition_status) = "sedang" THEN 40
+                            ELSE 10 
+                        END) as priority_score
+                    ')
+                )
+                ->groupBy('road_assets.road_name');
 
-                if (!empty($searchQuery)) {
-                    $query->where('road_assets.road_name', 'LIKE', "%{$searchQuery}%");
-                }
+            if (!empty($searchQuery)) {
+                $query->where('road_assets.road_name', 'LIKE', "%{$searchQuery}%");
+            }
 
-                $roadsData = $query->orderByDesc('priority_score')
-                    ->limit(100)
+            $roadsData = $query->orderByDesc('priority_score')
+                ->limit(100)
+                ->get()
+                ->map(fn($r) => [
+                    'id' => $r->asset_name,
+                    'name' => $r->asset_name, 
+                    'code' => $r->road_code, 
+                    'condition' => strtolower($r->condition_status), 
+                    'priority_score' => $r->priority_score,
+                    'estimated_budget' => round($r->total_length * $r->avg_width * 1000 * 250000, 0),
+                    'lat' => $r->lat,
+                    'lng' => $r->lng,
+                    'geometry' => $r->geometry ? json_decode($r->geometry) : null
+                ]);
+
+            // 3. Village Stats (With Fallback)
+            $villageStats = [];
+            try {
+                $villageStats = DB::table('road_assets')
+                    ->leftJoin('regions', 'road_assets.region_id', '=', 'regions.id')
+                    ->select('regions.district as name', 
+                             DB::raw('SUM(road_assets.length_km) as total_km'), 
+                             DB::raw('SUM(CASE WHEN road_assets.condition_status LIKE "rusak%" THEN road_assets.length_km ELSE 0 END) as rusak_km'))
+                    ->groupBy('regions.district')
+                    ->orderByDesc('rusak_km')
+                    ->limit(5)
                     ->get()
-                    ->map(fn($r) => [
-                        'id' => $r->asset_name,
-                        'name' => $r->asset_name, 
-                        'code' => $r->road_code, 
-                        'condition' => strtolower($r->condition_status), 
-                        'priority_score' => $r->priority_score,
-                        'estimated_budget' => round($r->total_length * $r->avg_width * 1000 * 250000, 0),
-                        'lat' => $r->lat,
-                        'lng' => $r->lng,
-                        'geometry' => $r->geometry ? json_decode($r->geometry) : null
+                    ->map(fn($v) => [
+                        'name' => $v->name ?? 'Luar Wilayah',
+                        'total_km' => round($v->total_km, 2),
+                        'rusak_km' => round($v->rusak_km, 2),
+                        'percent' => $v->total_km > 0 ? round(($v->rusak_km / $v->total_km) * 100, 1) : 0
                     ]);
+            } catch (\Exception $e) {}
 
-                // 3. Village Stats (With Fallback)
-                $villageStats = [];
-                try {
-                    $villageStats = DB::table('road_assets')
-                        ->leftJoin('regions', 'road_assets.region_id', '=', 'regions.id')
-                        ->select('regions.district as name', 
-                                 DB::raw('SUM(road_assets.length_km) as total_km'), 
-                                 DB::raw('SUM(CASE WHEN road_assets.condition_status LIKE "rusak%" THEN road_assets.length_km ELSE 0 END) as rusak_km'))
-                        ->groupBy('regions.district')
-                        ->orderByDesc('rusak_km')
-                        ->limit(5)
-                        ->get()
-                        ->map(fn($v) => [
-                            'name' => $v->name ?? 'Luar Wilayah',
-                            'total_km' => round($v->total_km, 2),
-                            'rusak_km' => round($v->rusak_km, 2),
-                            'percent' => $v->total_km > 0 ? round(($v->rusak_km / $v->total_km) * 100, 1) : 0
-                        ]);
-                } catch (\Exception $e) { /* ignore village errors */ }
-
-                return [
-                    'total_km'        => round($stats['total_km'], 2),
-                    'total_ruas'      => $stats['total_ruas'],
-                    'condition_stats' => $stats,
-                    'priority_roads'  => $roadsData->values(),
-                    'village_stats'   => $villageStats,
-                    'damaged_roads'   => DB::table('road_assets')
-                        ->where('condition_status', 'LIKE', 'rusak%')
-                        ->select('id', 'road_name as name', 'latitude as lat', 'longitude as lng', 'condition_status as condition')
-                        ->limit(50)
-                        ->get(),
-                    'damage_reports' => DamageReport::with(['photos.aiAnalysis', 'roadAsset'])
-                        ->latest()
-                        ->limit(10)
-                        ->get()
-                        ->map(fn($r) => [
-                            'id' => $r->id,
-                            'name' => $r->roadAsset->road_name ?? 'Unknown',
-                            'code' => $r->roadAsset->road_code ?? 'N/A',
-                            'condition' => $r->severity,
-                            'damage_type' => $r->photos->first()?->aiAnalysis?->damage_type ?? 'Awaiting AI...',
-                            'damage_details' => [
-                                'confidence' => ($r->photos->first()?->aiAnalysis?->confidence ?? 0) . '%',
-                                'severity_score' => $r->photos->first()?->aiAnalysis?->severity_score ?? 0,
-                                'status' => $r->status
-                            ]
-                        ]),
-                    'ai_stats' => DB::table('ai_analysis')
-                        ->select('damage_type', DB::raw('COUNT(*) as count'))
-                        ->groupBy('damage_type')
-                        ->pluck('count', 'damage_type'),
-                    'users' => User::whereNotNull('lat')->get(['user_id as id', 'user_name as name', 'lat', 'lng', 'accuracy'])
-                ];
-            });
+            return response()->json([
+                'total_km'        => round($stats['total_km'], 2),
+                'total_ruas'      => $stats['total_ruas'],
+                'condition_stats' => $stats,
+                'priority_roads'  => $roadsData->values(),
+                'village_stats'   => $villageStats,
+                'damaged_roads'   => [],
+                'damage_reports'  => [],
+                'ai_stats'        => [],
+                'users'           => User::whereNotNull('lat')->get(['user_id as id', 'user_name as name', 'lat', 'lng', 'accuracy'])
+            ]);
         } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
+            return response()->json([
+                'error' => $e->getMessage(),
+                'condition_stats' => ['baik' => 0, 'sedang' => 0, 'rusak_ringan' => 0, 'rusak_berat' => 0],
+                'priority_roads' => [],
+                'village_stats' => [],
+                'total_km' => 0,
+                'total_ruas' => 0
+            ]);
         }
     }
 
