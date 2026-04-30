@@ -35,18 +35,21 @@
         .custom-popup .leaflet-popup-content-wrapper { background: #1e293b; color: white; border-radius: 12px; }
         
         /* Road Labels Style */
+        .road-label-container { background: transparent; border: none; }
         .road-label {
-            background: rgba(15, 23, 42, 0.8);
-            border: 1px solid rgba(16, 185, 129, 0.4);
+            background: rgba(15, 23, 42, 0.95);
+            border: 2px solid #10b981;
             color: #10b981;
             font-weight: 900;
-            font-size: 9px;
-            padding: 2px 6px;
-            border-radius: 4px;
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 6px;
             text-transform: uppercase;
             letter-spacing: 0.05em;
             white-space: nowrap;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+            pointer-events: none;
+            display: inline-block;
         }
     </style>
 </head>
@@ -492,7 +495,9 @@
                         listEl.innerHTML = '<div class="p-8 text-center text-slate-500 text-xs italic">Semua infrastruktur dalam kondisi baik.</div>';
                     }
 
+                    console.log("📥 Dashboard Data Received:", data.priority_roads);
                     data.priority_roads.forEach((road, index) => {
+                        console.log(`🛣️ Processing: ${road.name}`, road.geometry);
                         const colorMap = {
                             'baik': '#10b981',
                             'sedang': '#f59e0b',
@@ -511,13 +516,15 @@
                                 lineJoin: 'round'
                             }).addTo(markersGroup);
 
-                            // Add permanent label
-                            polyline.bindTooltip(road.name, {
-                                permanent: true,
-                                direction: 'center',
-                                className: 'road-label',
-                                opacity: 0.9
+                            // Add permanent label at the center of the polyline
+                            const center = polyline.getBounds().getCenter();
+                            const labelIcon = L.divIcon({
+                                className: 'road-label-container',
+                                html: `<div class="road-label">${road.name}</div>`,
+                                iconSize: [100, 20],
+                                iconAnchor: [50, 10]
                             });
+                            L.marker(center, { icon: labelIcon, interactive: false }).addTo(markersGroup);
                         }
 
                         // 2. Add Marker to Map
