@@ -526,13 +526,20 @@
 
                                 // Add permanent floating label at the center
                                 const center = polyline.getBounds().getCenter();
+                                
+                                // High Visibility Badge
                                 const labelIcon = L.divIcon({
                                     className: 'road-label-container',
-                                    html: `<div class="road-label">${road.name}</div>`,
-                                    iconSize: [120, 24],
-                                    iconAnchor: [60, 12]
+                                    html: `
+                                        <div style="background: #000; border: 2px solid #fff; color: #fff; padding: 4px 10px; border-radius: 8px; font-weight: bold; font-size: 14px; white-space: nowrap; box-shadow: 0 4px 15px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 8px;">
+                                            <div style="width: 10px; height: 10px; border-radius: 50%; background: ${color}"></div>
+                                            ${road.name}
+                                        </div>
+                                    `,
+                                    iconSize: [150, 30],
+                                    iconAnchor: [75, 15]
                                 });
-                                L.marker(center, { icon: labelIcon, interactive: false }).addTo(markersGroup);
+                                L.marker(center, { icon: labelIcon, zIndexOffset: 1000, interactive: false }).addTo(markersGroup);
                             }
                         });
                     }
