@@ -230,12 +230,39 @@
 
         function initMap() {
             try {
-                // Initialize map inside the new layout
-                map = L.map('map', { zoomControl: false, attributionControl: false }).setView([-0.7893, 127.3750], 12);
-                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+                // Base Layers
+                const streets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; OpenStreetMap contributors'
+                });
                 
-                // Add zoom control at top right
+                const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+                });
+
+                const dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                    attribution: '&copy; CARTO'
+                });
+
+                // Initialize map with Street view as default
+                map = L.map('map', { 
+                    zoomControl: false, 
+                    attributionControl: false,
+                    layers: [streets] 
+                }).setView([-0.7893, 127.3750], 12);
+                
+                // Add Layer Control (Simplified & Repositioned)
+                const baseMaps = {
+                    "Street View": streets,
+                    "Satellite View": satellite,
+                    "Dark Mode": dark
+                };
+                L.control.layers(baseMaps, null, { position: 'bottomright', collapsed: false }).addTo(map);
+                
+                // Add zoom control
                 L.control.zoom({ position: 'topright' }).addTo(map);
+                
+                console.log("Map Initialized Successfully");
+                // alert("Map Loaded!"); // Uncomment for hard debug if needed
                 
                 markersGroup = L.markerClusterGroup().addTo(map);
                 heatLayer = L.heatLayer([], {radius: 25, blur: 15, maxZoom: 17}).addTo(map);

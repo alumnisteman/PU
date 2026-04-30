@@ -250,16 +250,19 @@
                     layers: [streets] 
                 }).setView([-0.7893, 127.3750], 12);
                 
-                // Add Layer Control (Uncollapsed for better visibility)
+                // Add Layer Control (Simplified & Repositioned)
                 const baseMaps = {
-                    "<span class='text-slate-800 font-bold'>🗺️ Street View</span>": streets,
-                    "<span class='text-slate-800 font-bold'>🛰️ Satellite</span>": satellite,
-                    "<span class='text-slate-800 font-bold'>🌑 Dark Mode</span>": dark
+                    "Street View": streets,
+                    "Satellite View": satellite,
+                    "Dark Mode": dark
                 };
-                L.control.layers(baseMaps, null, { position: 'topright', collapsed: false }).addTo(map);
+                L.control.layers(baseMaps, null, { position: 'bottomright', collapsed: false }).addTo(map);
                 
                 // Add zoom control
                 L.control.zoom({ position: 'topright' }).addTo(map);
+                
+                console.log("Map Initialized Successfully");
+                // alert("Map Loaded!"); // Uncomment for hard debug if needed
                 
                 markersGroup = L.markerClusterGroup().addTo(map);
                 heatLayer = L.heatLayer([], {radius: 25, blur: 15, maxZoom: 17}).addTo(map);
