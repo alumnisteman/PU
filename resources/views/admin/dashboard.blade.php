@@ -242,6 +242,8 @@
 
                 // Handle Right-Click for instant Registration
                 map.on('contextmenu', function(e) {
+                    if (e.originalEvent) e.originalEvent.preventDefault(); // Force prevent browser menu
+                    
                     if (tempMarker) map.removeLayer(tempMarker);
                     tempMarker = L.marker(e.latlng).addTo(map);
                     
@@ -269,6 +271,7 @@
                         </div>
                     `;
                     tempMarker.bindPopup(popupContent, { className: 'custom-popup', minWidth: 260 }).openPopup();
+                    return false;
                 });
 
                 // Handle Map Clicks for Registration (Legacy/Toggle Mode)
