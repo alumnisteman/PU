@@ -16,7 +16,7 @@
         }
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SISMAP Modern | Admin Infrastructure Control Center</title>
+    <title>SISMAP Modern v1.1 | Admin Infrastructure Control Center</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Map Libraries -->
@@ -240,12 +240,13 @@
                 markersGroup = L.markerClusterGroup().addTo(map);
                 heatLayer = L.heatLayer([], {radius: 25, blur: 15, maxZoom: 17}).addTo(map);
 
-                // Handle Right-Click for instant Registration
-                map.on('contextmenu', function(e) {
-                    if (e.originalEvent) e.originalEvent.preventDefault(); // Force prevent browser menu
+                // Robust Right-Click for instant Registration
+                document.getElementById('map').addEventListener('contextmenu', function(ev) {
+                    ev.preventDefault();
+                    const latlng = map.mouseEventToLatLng(ev);
                     
                     if (tempMarker) map.removeLayer(tempMarker);
-                    tempMarker = L.marker(e.latlng).addTo(map);
+                    tempMarker = L.marker(latlng).addTo(map);
                     
                     const popupContent = `
                         <div class="p-4 w-64 bg-slate-900 text-white rounded-xl shadow-2xl border border-slate-700">
@@ -264,7 +265,7 @@
                                         <option value="rusak_berat">Rusak Berat</option>
                                     </select>
                                 </div>
-                                <button onclick="saveNewRoad(${e.latlng.lat}, ${e.latlng.lng})" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2 rounded-lg text-xs uppercase tracking-widest transition-all shadow-lg shadow-emerald-600/20">
+                                <button onclick="saveNewRoad(${latlng.lat}, ${latlng.lng})" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2 rounded-lg text-xs uppercase tracking-widest transition-all shadow-lg shadow-emerald-600/20">
                                     Simpan Aset
                                 </button>
                             </div>
@@ -272,7 +273,7 @@
                     `;
                     tempMarker.bindPopup(popupContent, { className: 'custom-popup', minWidth: 260 }).openPopup();
                     return false;
-                });
+                }, true);
 
                 // Handle Map Clicks for Registration (Legacy/Toggle Mode)
                 map.on('click', function(e) {
