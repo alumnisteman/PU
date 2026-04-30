@@ -61,65 +61,28 @@ Route::get('/dashboard/stats', function() {
 });
 
 Route::post('/roads/register', function(Request $request) {
-    return \Illuminate\Support\Facades\DB::transaction(function() use ($request) {
-        try {
-            $validated = $request->validate([
-                'name' => 'required|string',
-                'lat' => 'required|numeric',
-                'lng' => 'required|numeric',
-                'length_m' => 'nullable|numeric',
-                'condition' => 'nullable|string'
-            ]);
+    try {
+        $validated = $request->validate([
+            'name' => 'required|string',
+            'lat' => 'required|numeric',
+            'lng' => 'required|numeric',
+            'length_m' => 'nullable|numeric',
+            'condition' => 'nullable|string'
+        ]);
 
-            $name = $validated['name'];
-            $lat = $validated['lat'];
-            $lng = $validated['lng'];
-            $length_km = ($validated['length_m'] ?? 0) / 1000;
-            $condition = $validated['condition'] ?? 'baik';
-            $code = 'R-' . strtoupper(substr(uniqid(), -4));
+        $assetId = \App\Services\RoadDataService::registerRoad($validated);
 
-            // 1. Create in road_assets
-            $assetId = \Illuminate\Support\Facades\DB::table('road_assets')->insertGetId([
-                'road_name' => $name,
-                'latitude' => $lat,
-                'longitude' => $lng,
-                'length_km' => $length_km,
-                'width_m' => 6.0, 
-                'condition_status' => $condition,
-                'road_code' => $code,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
+        // Dispatch AI Scoring to Queue (Redis)
+        \App\Jobs\CalculateRoadPriorityScore::dispatch($assetId);
 
-            // 2. Create or Update in roads (SISMAP PULSE table)
-            \Illuminate\Support\Facades\DB::table('roads')->updateOrInsert(
-                ['id' => $assetId],
-                [
-                    'name' => $name,
-                    'code' => $code,
-                    'lat' => $lat,
-                    'lng' => $lng,
-                    'length_km' => $length_km,
-                    'condition' => $condition,
-                    'geometry' => json_encode(['type' => 'Point', 'coordinates' => [(float)$lng, (float)$lat]]),
-                    'geom' => \Illuminate\Support\Facades\DB::raw("ST_SRID(ST_GeomFromText('LINESTRING($lng $lat, $lng $lat)'), 4326)"),
-                    'updated_at' => now(),
-                    'created_at' => \Illuminate\Support\Facades\DB::raw('COALESCE(created_at, NOW())')
-                ]
-            );
-
-            // Dispatch AI Scoring to Queue (Redis)
-            \App\Jobs\CalculateRoadPriorityScore::dispatch($assetId);
-
-            return response()->json([
-                'success' => true,
-                'asset_id' => $assetId,
-                'message' => 'Jalan berhasil didaftarkan ke Admin'
-            ]);
-        } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
-        }
-    });
+        return response()->json([
+            'success' => true,
+            'asset_id' => $assetId,
+            'message' => 'Jalan berhasil didaftarkan ke Admin'
+        ]);
+    } catch (\Exception $e) {
+        return response()->json(['error' => $e->getMessage()], 500);
+    }
 });
 
 // Damage Reports & AI
