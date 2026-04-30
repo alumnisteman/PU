@@ -468,9 +468,18 @@
         }
 
         function debugRoadData() {
-            const roadNames = currentData && currentData.all_roads ? currentData.all_roads.map(r => r.name) : [];
+            if (!currentData) {
+                alert("❌ Belum ada respon dari server. Silakan tunggu atau refresh.");
+                return;
+            }
+            
+            if (currentData.error) {
+                alert("⚠️ SERVER ERROR DETECTED:\n\n" + currentData.error);
+            }
+
+            const roadNames = currentData.all_roads ? currentData.all_roads.map(r => r.name) : [];
             if (roadNames.length === 0) {
-                alert("❌ Tidak ada data jalan yang dimuat dari server.");
+                alert("❌ Tidak ada data jalan yang ditemukan di memori peta.");
             } else {
                 alert("✅ Daftar Jalan di Memori Peta:\n\n" + roadNames.join("\n"));
             }
