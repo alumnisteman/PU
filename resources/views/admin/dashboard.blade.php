@@ -160,10 +160,14 @@
                         </div>
                         
                         <!-- Map Floating Toggle: Register Road -->
-                        <div class="absolute top-6 left-6 z-[400]">
-                            <button id="reg-toggle-btn" onclick="toggleRegistrationMode()" class="flex items-center gap-2 px-4 py-2 bg-slate-900/90 backdrop-blur-md border border-slate-700 text-slate-300 rounded-xl font-bold text-xs uppercase tracking-widest hover:text-white hover:border-emerald-500 transition-all shadow-xl">
-                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <div class="absolute top-6 left-6 z-[400] flex gap-2">
+                            <button id="reg-toggle-btn" onclick="toggleRegistrationMode()" class="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition-all font-bold text-xs">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                 Register Road
+                            </button>
+                            <button onclick="debugRoadData()" class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg border border-blue-500 transition-all font-bold text-xs">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                                DEBUG DATA
                             </button>
                         </div>
 
@@ -230,7 +234,8 @@
             }
         }
 
-        let map, markersGroup, conditionChart, heatLayer;
+        let map, markersGroup, currentData;
+        let conditionChart, heatLayer;
         let workerMarkers = {};
         let registrationMode = false;
         let tempMarker = null;
@@ -462,10 +467,20 @@
             }, 4000);
         }
 
+        function debugRoadData() {
+            const roadNames = currentData && currentData.all_roads ? currentData.all_roads.map(r => r.name) : [];
+            if (roadNames.length === 0) {
+                alert("❌ Tidak ada data jalan yang dimuat dari server.");
+            } else {
+                alert("✅ Daftar Jalan di Memori Peta:\n\n" + roadNames.join("\n"));
+            }
+        }
+
         async function loadData() {
             try {
                 const res = await fetch('/api/roads/dashboard?t=' + Date.now());
                 const data = await res.json();
+                currentData = data; // Store globally for debug
                 
                 // Update Topbar Stats
                 if(document.getElementById('total_km')) document.getElementById('total_km').innerText = data.total_km + ' KM';
