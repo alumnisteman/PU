@@ -137,6 +137,10 @@
                     <div class="flex-1 bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl relative">
                         <div id="map" class="absolute inset-0"></div>
                         
+                        <!-- Map Instruction Overlay -->
+                        <div id="map-instruction" class="hidden absolute top-6 left-1/2 -translate-x-1/2 z-[400] bg-slate-900/95 backdrop-blur-md border border-emerald-500/50 px-6 py-2 rounded-full text-emerald-400 text-[11px] font-black uppercase tracking-widest shadow-[0_0_20px_rgba(16,185,129,0.2)] flex items-center gap-3">
+                        </div>
+                        
                         <!-- Map Floating Toggle: Register Road -->
                         <div class="absolute top-6 left-6 z-[400]">
                             <button id="reg-toggle-btn" onclick="toggleRegistrationMode()" class="flex items-center gap-2 px-4 py-2 bg-slate-900/90 backdrop-blur-md border border-slate-700 text-slate-300 rounded-xl font-bold text-xs uppercase tracking-widest hover:text-white hover:border-emerald-500 transition-all shadow-xl">
@@ -229,11 +233,15 @@
                 btn.classList.add('bg-emerald-600', 'text-white', 'ring-4', 'ring-emerald-500/30');
                 btn.innerHTML = '<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg> Cancel Drawing';
                 map.getContainer().style.cursor = 'crosshair';
-                alert('Silakan klik di peta untuk titik AWAL, lalu klik lagi untuk titik AKHIR (atau batas-batas jalan).');
+                
+                const overlay = document.getElementById('map-instruction');
+                overlay.innerHTML = '📍 Klik di peta untuk menentukan <b>TITIK AWAL</b>';
+                overlay.classList.remove('hidden');
             } else {
                 btn.classList.remove('bg-emerald-600', 'text-white', 'ring-4', 'ring-emerald-500/30');
                 btn.innerHTML = '<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Register Road';
                 map.getContainer().style.cursor = '';
+                document.getElementById('map-instruction').classList.add('hidden');
             }
         }
 
@@ -262,25 +270,40 @@
                     return false;
                 }, true);
 
-                // Drawing Logic for Path Limits
+                // Enhanced Drawing Logic with Rubber-banding
+                let rubberLine = null;
+
+                map.on('mousemove', function(e) {
+                    if (!registrationMode || registrationPoints.length === 0) return;
+                    
+                    if (rubberLine) map.removeLayer(rubberLine);
+                    const lastPoint = registrationPoints[registrationPoints.length - 1];
+                    rubberLine = L.polyline([[lastPoint[1], lastPoint[0]], e.latlng], { 
+                        color: '#10b981', weight: 2, dashArray: '5, 10', opacity: 0.5 
+                    }).addTo(map);
+                });
+
                 map.on('click', function(e) {
                     if (!registrationMode) return;
 
                     registrationPoints.push([e.latlng.lng, e.latlng.lat]);
                     
-                    // Update visual line
+                    // Update main path
                     if (registrationLine) map.removeLayer(registrationLine);
-                    
                     const latlngs = registrationPoints.map(p => [p[1], p[0]]);
-                    registrationLine = L.polyline(latlngs, { color: '#10b981', weight: 4, dashArray: '10, 10', opacity: 0.8 }).addTo(map);
+                    registrationLine = L.polyline(latlngs, { color: '#10b981', weight: 5, opacity: 0.9 }).addTo(map);
                     
-                    // Add temporary dot
-                    L.circleMarker(e.latlng, { radius: 5, color: 'white', fillColor: '#10b981', fillOpacity: 1 }).addTo(map);
+                    // Add point marker
+                    L.circleMarker(e.latlng, { radius: 6, color: 'white', weight: 2, fillColor: '#10b981', fillOpacity: 1 }).addTo(map);
 
-                    if (registrationPoints.length >= 2) {
-                        // After 2 points, show options to finish or continue
-                        const lastPoint = e.latlng;
-                        showRegPopup(lastPoint.lat, lastPoint.lng, registrationPoints);
+                    // Update Instruction
+                    const overlay = document.getElementById('map-instruction');
+                    if (registrationPoints.length === 1) {
+                        overlay.innerHTML = '<span class="animate-pulse">📍</span> Sekarang klik titik <b>AKHIR</b> jalan';
+                        overlay.classList.remove('hidden');
+                    } else {
+                        overlay.innerHTML = '✨ Garis terbentuk. Klik <b>"Simpan"</b> di popup atau tambah titik lagi.';
+                        showRegPopup(e.latlng.lat, e.latlng.lng, registrationPoints);
                     }
                 });
 
