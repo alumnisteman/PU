@@ -95,48 +95,43 @@ class RoadController extends Controller
             $stats['total_km'] = DB::table('road_assets')->sum('length_km');
             $stats['rusak'] = ($stats['rusak_ringan'] ?? 0) + ($stats['rusak_berat'] ?? 0);
 
-            // 2. Priority Roads with Geometry
-            $query = DB::table('road_assets')
-                ->leftJoin('roads', 'road_assets.road_name', '=', 'roads.name')
+            // 2. Fetch Assets and Roads separately to BYPASS collation errors
+            $assets = DB::table('road_assets')
                 ->select(
-                    'road_assets.road_name as asset_name', 
-                    DB::raw('MAX(road_assets.road_code) as road_code'),
-                    DB::raw('MAX(road_assets.condition_status) as condition_status'),
-                    DB::raw('SUM(road_assets.length_km) as total_length'),
-                    DB::raw('AVG(COALESCE(NULLIF(road_assets.width_m, 0), 6)) as avg_width'),
-                    DB::raw('MAX(road_assets.latitude) as lat'),
-                    DB::raw('MAX(road_assets.longitude) as lng'),
-                    DB::raw('MAX(roads.geometry) as geometry'),
-                    DB::raw('
-                        MAX(CASE 
-                            WHEN LOWER(road_assets.condition_status) = "rusak_berat" THEN 90
-                            WHEN LOWER(road_assets.condition_status) = "rusak_ringan" THEN 70
-                            WHEN LOWER(road_assets.condition_status) = "rusak" THEN 80
-                            WHEN LOWER(road_assets.condition_status) = "sedang" THEN 40
-                            ELSE 10 
-                        END) as priority_score
-                    ')
+                    'road_name', 'road_code', 'condition_status', 'length_km', 
+                    'width_m', 'latitude', 'longitude'
                 )
-                ->groupBy('road_assets.road_name');
+                ->limit(200)
+                ->get();
 
-            if (!empty($searchQuery)) {
-                $query->where('road_assets.road_name', 'LIKE', "%{$searchQuery}%");
-            }
-
-            $roadsData = $query->orderByDesc('priority_score')
-                ->limit(100)
+            $roadsGeom = DB::table('roads')
+                ->select('name', 'geometry', 'condition')
                 ->get()
-                ->map(fn($r) => [
-                    'id' => $r->asset_name,
-                    'name' => $r->asset_name, 
-                    'code' => $r->road_code, 
-                    'condition' => strtolower($r->condition_status), 
-                    'priority_score' => $r->priority_score,
-                    'estimated_budget' => round($r->total_length * $r->avg_width * 1000 * 250000, 0),
-                    'lat' => $r->lat,
-                    'lng' => $r->lng,
-                    'geometry' => $r->geometry ? json_decode($r->geometry) : null
-                ]);
+                ->keyBy('name');
+
+            $roadsData = $assets->map(function($asset) use ($roadsGeom) {
+                $name = $asset->road_name;
+                // Try exact match, then try normalized match
+                $geom = $roadsGeom->get($name) ?? $roadsGeom->get('Jalan ' . $name) ?? $roadsGeom->get(str_replace('Jalan ', '', $name));
+                
+                $score = 10;
+                $c = strtolower($asset->condition_status);
+                if ($c == 'rusak_berat') $score = 90;
+                elseif ($c == 'rusak_ringan' || $c == 'rusak') $score = 70;
+                elseif ($c == 'sedang') $score = 40;
+
+                return [
+                    'id' => $asset->road_name,
+                    'name' => $asset->road_name, 
+                    'code' => $asset->road_code, 
+                    'condition' => $c, 
+                    'priority_score' => $score,
+                    'estimated_budget' => round($asset->length_km * ($asset->width_m ?: 6) * 1000 * 250000, 0),
+                    'lat' => $asset->latitude,
+                    'lng' => $asset->longitude,
+                    'geometry' => $geom ? json_decode($geom->geometry) : null
+                ];
+            });
 
             // 3. Village Stats (With Fallback)
             $villageStats = [];
@@ -158,22 +153,22 @@ class RoadController extends Controller
                     ]);
             } catch (\Exception $e) {}
 
-                return response()->json([
-                    'total_km'        => round($stats['total_km'], 2),
-                    'total_ruas'      => $stats['total_ruas'],
-                    'condition_stats' => $stats,
-                    'priority_roads'  => $roadsData->values(),
-                    'all_roads'       => DB::table('roads')->select('name', 'geometry', 'condition')->get()->map(fn($r) => [
-                        'name' => $r->name,
-                        'condition' => $r->condition,
-                        'geometry' => json_decode($r->geometry)
-                    ]),
-                    'village_stats'   => $villageStats,
-                    'damaged_roads'   => [],
-                    'damage_reports'  => [],
-                    'ai_stats'        => [],
-                    'users'           => User::whereNotNull('lat')->get(['user_id as id', 'user_name as name', 'lat', 'lng', 'accuracy'])
-                ]);
+            return response()->json([
+                'total_km'        => round($stats['total_km'], 2),
+                'total_ruas'      => $stats['total_ruas'],
+                'condition_stats' => $stats,
+                'priority_roads'  => $roadsData->values(),
+                'all_roads'       => $roadsGeom->values()->map(fn($r) => [
+                    'name' => $r->name,
+                    'condition' => $r->condition,
+                    'geometry' => json_decode($r->geometry)
+                ]),
+                'village_stats'   => $villageStats,
+                'damaged_roads'   => [],
+                'damage_reports'  => [],
+                'ai_stats'        => [],
+                'users'           => User::whereNotNull('lat')->get(['user_id as id', 'user_name as name', 'lat', 'lng', 'accuracy'])
+            ]);
         } catch (\Exception $e) {
             return response()->json([
                 'error' => $e->getMessage(),
