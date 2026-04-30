@@ -123,37 +123,40 @@ class RoadController extends Controller
             } else {
                 // 2. Priority Roads from road_assets with dynamic scoring & grouping
             $roadsData = DB::table('road_assets')
+                ->leftJoin('roads', 'road_assets.road_name', '=', 'roads.name')
                 ->select(
-                    'road_name', 
-                    DB::raw('MAX(road_code) as road_code'),
-                    DB::raw('MAX(condition_status) as condition_status'),
-                    DB::raw('SUM(length_km) as total_length'),
-                    DB::raw('AVG(COALESCE(NULLIF(width_m, 0), 6)) as avg_width'),
-                    DB::raw('MAX(latitude) as lat'),
-                    DB::raw('MAX(longitude) as lng'),
+                    'road_assets.road_name', 
+                    DB::raw('MAX(road_assets.road_code) as road_code'),
+                    DB::raw('MAX(road_assets.condition_status) as condition_status'),
+                    DB::raw('SUM(road_assets.length_km) as total_length'),
+                    DB::raw('AVG(COALESCE(NULLIF(road_assets.width_m, 0), 6)) as avg_width'),
+                    DB::raw('MAX(road_assets.latitude) as lat'),
+                    DB::raw('MAX(road_assets.longitude) as lng'),
+                    DB::raw('MAX(roads.geometry) as geometry'),
                     DB::raw('
                         MAX(CASE 
-                            WHEN LOWER(condition_status) = "rusak_berat" THEN 90
-                            WHEN LOWER(condition_status) = "rusak_ringan" THEN 70
-                            WHEN LOWER(condition_status) = "rusak" THEN 80
-                            WHEN LOWER(condition_status) = "sedang" THEN 40
+                            WHEN LOWER(road_assets.condition_status) = "rusak_berat" THEN 90
+                            WHEN LOWER(road_assets.condition_status) = "rusak_ringan" THEN 70
+                            WHEN LOWER(road_assets.condition_status) = "rusak" THEN 80
+                            WHEN LOWER(road_assets.condition_status) = "sedang" THEN 40
                             ELSE 10 
                         END) as priority_score
                     ')
                 )
-                ->groupBy('road_name')
+                ->groupBy('road_assets.road_name')
                 ->orderByDesc('priority_score')
                 ->limit(100)
                 ->get()
                 ->map(fn($r) => [
-                    'id' => $r->road_name, // Use name as ID for grouping
+                    'id' => $r->road_name,
                     'name' => $r->road_name, 
                     'code' => $r->road_code, 
                     'condition' => strtolower($r->condition_status), 
                     'priority_score' => $r->priority_score,
                     'estimated_budget' => round($r->total_length * $r->avg_width * 1000 * 250000, 0),
                     'lat' => $r->lat,
-                    'lng' => $r->lng
+                    'lng' => $r->lng,
+                    'geometry' => json_decode($r->geometry)
                 ]);
             }
 

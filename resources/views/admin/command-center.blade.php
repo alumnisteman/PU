@@ -33,6 +33,21 @@
         html, body { background-color: #0f172a; color: #f8fafc; font-family: sans-serif; margin: 0; padding: 0; }
         #map { height: 500px; border-radius: 1.5rem; background: #1e293b; }
         .custom-popup .leaflet-popup-content-wrapper { background: #1e293b; color: white; border-radius: 12px; }
+        
+        /* Road Labels Style */
+        .road-label {
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(16, 185, 129, 0.4);
+            color: #10b981;
+            font-weight: 900;
+            font-size: 9px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            white-space: nowrap;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
     </style>
 </head>
 <body class="bg-[#0f172a] text-slate-200 overflow-hidden">
@@ -478,16 +493,35 @@
                     }
 
                     data.priority_roads.forEach((road, index) => {
-                        // 1. Add Marker to Map
+                        const colorMap = {
+                            'baik': '#10b981',
+                            'sedang': '#f59e0b',
+                            'rusak_ringan': '#f97316',
+                            'rusak_berat': '#e11d48'
+                        };
+                        const color = colorMap[road.condition] || '#10b981';
+
+                        // 1. Render Road Path (LineString) if available
+                        if (road.geometry && road.geometry.type === 'LineString') {
+                            const latlngs = road.geometry.coordinates.map(c => [c[1], c[0]]);
+                            const polyline = L.polyline(latlngs, {
+                                color: color,
+                                weight: 6,
+                                opacity: 0.6,
+                                lineJoin: 'round'
+                            }).addTo(markersGroup);
+
+                            // Add permanent label
+                            polyline.bindTooltip(road.name, {
+                                permanent: true,
+                                direction: 'center',
+                                className: 'road-label',
+                                opacity: 0.9
+                            });
+                        }
+
+                        // 2. Add Marker to Map
                         if (road.lat && road.lng) {
-                            const colorMap = {
-                                'baik': '#10b981',
-                                'sedang': '#f59e0b',
-                                'rusak_ringan': '#f97316',
-                                'rusak_berat': '#e11d48'
-                            };
-                            const color = colorMap[road.condition] || '#10b981';
-                            
                             const markerIcon = L.divIcon({
                                 className: 'custom-road-marker',
                                 html: `<div class="w-4 h-4 rounded-full border-2 border-white shadow-lg" style="background-color: ${color}"></div>`,
