@@ -125,7 +125,7 @@ class RoadController extends Controller
             $roadsData = DB::table('road_assets')
                 ->leftJoin('roads', 'road_assets.road_name', '=', 'roads.name')
                 ->select(
-                    'road_assets.road_name', 
+                    'road_assets.road_name as asset_name', 
                     DB::raw('MAX(road_assets.road_code) as road_code'),
                     DB::raw('MAX(road_assets.condition_status) as condition_status'),
                     DB::raw('SUM(road_assets.length_km) as total_length'),
@@ -148,15 +148,15 @@ class RoadController extends Controller
                 ->limit(100)
                 ->get()
                 ->map(fn($r) => [
-                    'id' => $r->road_name,
-                    'name' => $r->road_name, 
+                    'id' => $r->asset_name,
+                    'name' => $r->asset_name, 
                     'code' => $r->road_code, 
                     'condition' => strtolower($r->condition_status), 
                     'priority_score' => $r->priority_score,
                     'estimated_budget' => round($r->total_length * $r->avg_width * 1000 * 250000, 0),
                     'lat' => $r->lat,
                     'lng' => $r->lng,
-                    'geometry' => json_decode($r->geometry)
+                    'geometry' => $r->geometry ? json_decode($r->geometry) : null
                 ]);
             }
 
