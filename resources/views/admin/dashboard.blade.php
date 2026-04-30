@@ -250,13 +250,13 @@
                     layers: [streets] 
                 }).setView([-0.7893, 127.3750], 12);
                 
-                // Add Layer Control
+                // Add Layer Control (Uncollapsed for better visibility)
                 const baseMaps = {
-                    "Street View": streets,
-                    "Satellite View": satellite,
-                    "Dark Mode": dark
+                    "<span class='text-slate-800 font-bold'>🗺️ Street View</span>": streets,
+                    "<span class='text-slate-800 font-bold'>🛰️ Satellite</span>": satellite,
+                    "<span class='text-slate-800 font-bold'>🌑 Dark Mode</span>": dark
                 };
-                L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
+                L.control.layers(baseMaps, null, { position: 'topright', collapsed: false }).addTo(map);
                 
                 // Add zoom control
                 L.control.zoom({ position: 'topright' }).addTo(map);
