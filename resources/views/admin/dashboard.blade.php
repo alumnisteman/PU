@@ -240,7 +240,38 @@
                 markersGroup = L.markerClusterGroup().addTo(map);
                 heatLayer = L.heatLayer([], {radius: 25, blur: 15, maxZoom: 17}).addTo(map);
 
-                // Handle Map Clicks for Registration
+                // Handle Right-Click for instant Registration
+                map.on('contextmenu', function(e) {
+                    if (tempMarker) map.removeLayer(tempMarker);
+                    tempMarker = L.marker(e.latlng).addTo(map);
+                    
+                    const popupContent = `
+                        <div class="p-4 w-64 bg-slate-900 text-white rounded-xl shadow-2xl border border-slate-700">
+                            <h3 class="text-sm font-black uppercase tracking-widest mb-3 text-emerald-400">Daftarkan Jalan Baru</h3>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="text-[10px] font-bold text-slate-500 uppercase">Nama Jalan</label>
+                                    <input type="text" id="reg-road-name" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white mt-1 focus:ring-2 focus:ring-emerald-500 transition-all" placeholder="Masukkan nama...">
+                                </div>
+                                <div>
+                                    <label class="text-[10px] font-bold text-slate-500 uppercase">Kondisi</label>
+                                    <select id="reg-road-condition" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white mt-1">
+                                        <option value="baik">Baik</option>
+                                        <option value="sedang">Sedang</option>
+                                        <option value="rusak_ringan">Rusak Ringan</option>
+                                        <option value="rusak_berat">Rusak Berat</option>
+                                    </select>
+                                </div>
+                                <button onclick="saveNewRoad(${e.latlng.lat}, ${e.latlng.lng})" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2 rounded-lg text-xs uppercase tracking-widest transition-all shadow-lg shadow-emerald-600/20">
+                                    Simpan Aset
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    tempMarker.bindPopup(popupContent, { className: 'custom-popup', minWidth: 260 }).openPopup();
+                });
+
+                // Handle Map Clicks for Registration (Legacy/Toggle Mode)
                 map.on('click', function(e) {
                     if (!registrationMode) return;
 
