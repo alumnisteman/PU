@@ -371,5 +371,6 @@
             // For parent window communication (if used inside an iframe, or just self)
             window.map = map;
         };
+    </script>
 </body>
 </html>
