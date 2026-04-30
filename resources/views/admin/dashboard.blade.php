@@ -213,148 +213,136 @@
         let registrationMode = false;
         let tempMarker = null;
 
+        let registrationPoints = [];
+        let registrationLine = null;
+
         function toggleRegistrationMode() {
             registrationMode = !registrationMode;
             const btn = document.getElementById('reg-toggle-btn');
+            
+            // Reset state
+            registrationPoints = [];
+            if(registrationLine) { map.removeLayer(registrationLine); registrationLine = null; }
+            if(tempMarker) { map.removeLayer(tempMarker); tempMarker = null; }
+
             if (registrationMode) {
                 btn.classList.add('bg-emerald-600', 'text-white', 'ring-4', 'ring-emerald-500/30');
-                btn.innerHTML = '<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg> Cancel Reg';
+                btn.innerHTML = '<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg> Cancel Drawing';
                 map.getContainer().style.cursor = 'crosshair';
+                alert('Silakan klik di peta untuk titik AWAL, lalu klik lagi untuk titik AKHIR (atau batas-batas jalan).');
             } else {
                 btn.classList.remove('bg-emerald-600', 'text-white', 'ring-4', 'ring-emerald-500/30');
                 btn.innerHTML = '<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Register Road';
                 map.getContainer().style.cursor = '';
-                if(tempMarker) { map.removeLayer(tempMarker); tempMarker = null; }
             }
         }
 
         function initMap() {
             try {
-                // Base Layers
-                const streets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '&copy; OpenStreetMap contributors'
-                });
-                
-                const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
-                });
+                // ... (Base layer definitions remain the same)
+                const streets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' });
+                const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri' });
+                const dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: 'CARTO' });
 
-                const dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-                    attribution: '&copy; CARTO'
-                });
-
-                // Initialize map with Street view as default
-                map = L.map('map', { 
-                    zoomControl: false, 
-                    attributionControl: false,
-                    layers: [streets] 
-                }).setView([-0.7893, 127.3750], 12);
+                map = L.map('map', { zoomControl: false, attributionControl: false, layers: [streets] }).setView([-0.7893, 127.3750], 12);
                 
-                // Add Layer Control (Simplified & Repositioned)
-                const baseMaps = {
-                    "Street View": streets,
-                    "Satellite View": satellite,
-                    "Dark Mode": dark
-                };
+                const baseMaps = { "Street View": streets, "Satellite View": satellite, "Dark Mode": dark };
                 L.control.layers(baseMaps, null, { position: 'bottomright', collapsed: false }).addTo(map);
-                
-                // Add zoom control
                 L.control.zoom({ position: 'topright' }).addTo(map);
-                
-                console.log("Map Initialized Successfully");
-                // alert("Map Loaded!"); // Uncomment for hard debug if needed
                 
                 markersGroup = L.markerClusterGroup().addTo(map);
                 heatLayer = L.heatLayer([], {radius: 25, blur: 15, maxZoom: 17}).addTo(map);
 
-                // Robust Right-Click for instant Registration
+                // Robust Right-Click (Still available for quick point reg)
                 document.getElementById('map').addEventListener('contextmenu', function(ev) {
+                    if (registrationMode) return; // Ignore if drawing
                     ev.preventDefault();
                     const latlng = map.mouseEventToLatLng(ev);
-                    
-                    if (tempMarker) map.removeLayer(tempMarker);
-                    tempMarker = L.marker(latlng).addTo(map);
-                    
-                    const popupContent = `
-                        <div class="p-4 w-64 bg-slate-900 text-white rounded-xl shadow-2xl border border-slate-700">
-                            <h3 class="text-sm font-black uppercase tracking-widest mb-3 text-emerald-400">Daftarkan Jalan Baru</h3>
-                            <div class="space-y-3">
-                                <div>
-                                    <label class="text-[10px] font-bold text-slate-500 uppercase">Nama Jalan</label>
-                                    <input type="text" id="reg-road-name" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white mt-1 focus:ring-2 focus:ring-emerald-500 transition-all" placeholder="Masukkan nama...">
-                                </div>
-                                <div>
-                                    <label class="text-[10px] font-bold text-slate-500 uppercase">Kondisi</label>
-                                    <select id="reg-road-condition" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white mt-1">
-                                        <option value="baik">Baik</option>
-                                        <option value="sedang">Sedang</option>
-                                        <option value="rusak_ringan">Rusak Ringan</option>
-                                        <option value="rusak_berat">Rusak Berat</option>
-                                    </select>
-                                </div>
-                                <button onclick="saveNewRoad(${latlng.lat}, ${latlng.lng})" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2 rounded-lg text-xs uppercase tracking-widest transition-all shadow-lg shadow-emerald-600/20">
-                                    Simpan Aset
-                                </button>
-                            </div>
-                        </div>
-                    `;
-                    tempMarker.bindPopup(popupContent, { className: 'custom-popup', minWidth: 260 }).openPopup();
+                    showRegPopup(latlng.lat, latlng.lng, [[latlng.lng, latlng.lat]]);
                     return false;
                 }, true);
 
-                // Handle Map Clicks for Registration (Legacy/Toggle Mode)
+                // Drawing Logic for Path Limits
                 map.on('click', function(e) {
                     if (!registrationMode) return;
 
-                    if (tempMarker) map.removeLayer(tempMarker);
-                    tempMarker = L.marker(e.latlng).addTo(map);
+                    registrationPoints.push([e.latlng.lng, e.latlng.lat]);
                     
-                    const popupContent = `
-                        <div class="p-4 w-64 bg-slate-900 text-white rounded-xl shadow-2xl border border-slate-700">
-                            <h3 class="text-sm font-black uppercase tracking-widest mb-3 text-emerald-400">Daftarkan Jalan Baru</h3>
-                            <div class="space-y-3">
-                                <div>
-                                    <label class="text-[10px] font-bold text-slate-500 uppercase">Nama Jalan</label>
-                                    <input type="text" id="reg-road-name" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white mt-1 focus:ring-2 focus:ring-emerald-500 transition-all" placeholder="Masukkan nama...">
-                                </div>
-                                <div>
-                                    <label class="text-[10px] font-bold text-slate-500 uppercase">Kondisi</label>
-                                    <select id="reg-road-condition" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white mt-1">
-                                        <option value="baik">Baik</option>
-                                        <option value="sedang">Sedang</option>
-                                        <option value="rusak_ringan">Rusak Ringan</option>
-                                        <option value="rusak_berat">Rusak Berat</option>
-                                    </select>
-                                </div>
-                                <button onclick="saveNewRoad(${e.latlng.lat}, ${e.latlng.lng})" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2 rounded-lg text-xs uppercase tracking-widest transition-all shadow-lg shadow-emerald-600/20">
-                                    Simpan Aset
-                                </button>
-                            </div>
-                        </div>
-                    `;
-                    tempMarker.bindPopup(popupContent, { className: 'custom-popup', minWidth: 260 }).openPopup();
+                    // Update visual line
+                    if (registrationLine) map.removeLayer(registrationLine);
+                    
+                    const latlngs = registrationPoints.map(p => [p[1], p[0]]);
+                    registrationLine = L.polyline(latlngs, { color: '#10b981', weight: 4, dashArray: '10, 10', opacity: 0.8 }).addTo(map);
+                    
+                    // Add temporary dot
+                    L.circleMarker(e.latlng, { radius: 5, color: 'white', fillColor: '#10b981', fillOpacity: 1 }).addTo(map);
+
+                    if (registrationPoints.length >= 2) {
+                        // After 2 points, show options to finish or continue
+                        const lastPoint = e.latlng;
+                        showRegPopup(lastPoint.lat, lastPoint.lng, registrationPoints);
+                    }
                 });
 
             } catch (e) { logError("Map Error: " + e.message); }
         }
 
-        async function saveNewRoad(lat, lng) {
+        function showRegPopup(lat, lng, coords) {
+            if (tempMarker) map.removeLayer(tempMarker);
+            tempMarker = L.marker([lat, lng]).addTo(map);
+            
+            const coordStr = JSON.stringify(coords);
+            const popupContent = `
+                <div class="p-4 w-64 bg-slate-900 text-white rounded-xl shadow-2xl border border-slate-700">
+                    <h3 class="text-sm font-black uppercase tracking-widest mb-3 text-emerald-400">Daftarkan Batas Jalan</h3>
+                    <div class="space-y-3">
+                        <div class="text-[9px] text-slate-400 font-bold italic mb-2">
+                            ${coords.length} Titik batas terpilih
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-500 uppercase">Nama Jalan</label>
+                            <input type="text" id="reg-road-name" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white mt-1 focus:ring-2 focus:ring-emerald-500 transition-all" placeholder="Masukkan nama...">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-500 uppercase">Kondisi</label>
+                            <select id="reg-road-condition" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white mt-1">
+                                <option value="baik">Baik</option>
+                                <option value="sedang">Sedang</option>
+                                <option value="rusak_ringan">Rusak Ringan</option>
+                                <option value="rusak_berat">Rusak Berat</option>
+                            </select>
+                        </div>
+                        <button onclick='saveNewRoadWithCoords(${coordStr})' class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2 rounded-lg text-xs uppercase tracking-widest transition-all shadow-lg shadow-emerald-600/20">
+                            Simpan Batas Jalan
+                        </button>
+                    </div>
+                </div>
+            `;
+            tempMarker.bindPopup(popupContent, { className: 'custom-popup', minWidth: 260 }).openPopup();
+        }
+
+        async function saveNewRoadWithCoords(coords) {
             const name = document.getElementById('reg-road-name').value;
             const condition = document.getElementById('reg-road-condition').value;
 
             if (!name) { alert('Nama jalan wajib diisi!'); return; }
 
             try {
+                // Take center point for legacy latitude/longitude fields
+                const midIdx = Math.floor(coords.length / 2);
+                const lat = coords[midIdx][1];
+                const lng = coords[midIdx][0];
+
                 const res = await fetch('/api/roads/register', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
-                    body: JSON.stringify({ name, lat, lng, condition })
+                    body: JSON.stringify({ name, lat, lng, condition, coordinates: coords })
                 });
                 const result = await res.json();
                 if (result.success) {
-                    alert('Jalan berhasil didaftarkan!');
+                    alert('Jalan dan batas berhasil didaftarkan!');
                     toggleRegistrationMode();
-                    loadData(); // Refresh dashboard
+                    loadData(); 
                 } else {
                     alert('Gagal: ' + (result.error || 'Terjadi kesalahan'));
                 }

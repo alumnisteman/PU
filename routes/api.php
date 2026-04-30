@@ -67,7 +67,8 @@ Route::post('/roads/register', function(Request $request) {
             'lat' => 'required|numeric',
             'lng' => 'required|numeric',
             'length_m' => 'nullable|numeric',
-            'condition' => 'nullable|string'
+            'condition' => 'nullable|string',
+            'coordinates' => 'nullable|array'
         ]);
 
         $assetId = \App\Services\RoadDataService::registerRoad($validated);

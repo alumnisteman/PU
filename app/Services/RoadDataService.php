@@ -21,6 +21,16 @@ class RoadDataService
             $condition = $data['condition'] ?? 'baik';
             $length_km = ($data['length_m'] ?? 0) / 1000;
             $code = $data['code'] ?? 'R-' . strtoupper(substr(uniqid(), -4));
+            $coords = $data['coordinates'] ?? [[$lng, $lat]];
+
+            // Build WKT LINESTRING
+            $wktPoints = [];
+            foreach($coords as $c) {
+                $wktPoints[] = "{$c[0]} {$c[1]}";
+            }
+            // If only one point, duplicate it to make it a valid (albeit zero-length) line
+            if (count($wktPoints) === 1) $wktPoints[] = $wktPoints[0];
+            $wktLine = "LINESTRING(" . implode(", ", $wktPoints) . ")";
 
             // 1. Insert into road_assets (Detailed Asset Management)
             $assetId = DB::table('road_assets')->insertGetId([
@@ -37,7 +47,7 @@ class RoadDataService
 
             // 2. Insert into roads (SISMAP PULSE Integration)
             DB::table('roads')->updateOrInsert(
-                ['id' => $assetId], // Sync ID if possible, or use name-based lookup
+                ['id' => $assetId],
                 [
                     'name' => $name,
                     'code' => $code,
@@ -45,8 +55,8 @@ class RoadDataService
                     'lng' => $lng,
                     'length_km' => $length_km,
                     'condition' => $condition,
-                    'geometry' => json_encode(['type' => 'Point', 'coordinates' => [(float)$lng, (float)$lat]]),
-                    'geom' => DB::raw("ST_SRID(ST_GeomFromText('LINESTRING($lng $lat, $lng $lat)'), 4326)"),
+                    'geometry' => json_encode(['type' => 'LineString', 'coordinates' => $coords]),
+                    'geom' => DB::raw("ST_SRID(ST_GeomFromText('$wktLine'), 4326)"),
                     'updated_at' => now(),
                     'created_at' => DB::raw('COALESCE(created_at, NOW())')
                 ]
