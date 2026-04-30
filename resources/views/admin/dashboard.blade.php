@@ -59,16 +59,17 @@
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
                     Data Entry
                 </a>
+                <a href="#" class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-xl font-bold text-sm transition-colors">
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
                     Reports
                 </a>
 
-                <!-- New Visible Logout Button in Nav -->
-                <div class="pt-10">
+                <!-- Clean Logout Button in Nav -->
+                <div class="pt-8 mt-8 border-t border-slate-800/50">
                     <form action="{{ route('logout') }}" method="POST">
                         @csrf
-                        <button type="submit" class="w-full flex items-center gap-3 px-4 py-3 text-rose-400 hover:text-white hover:bg-rose-600 rounded-xl font-bold text-sm transition-all shadow-lg shadow-rose-600/10">
-                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                        <button type="submit" class="w-full flex items-center gap-3 px-4 py-3 text-rose-400 hover:text-white hover:bg-rose-600 rounded-xl font-bold text-sm transition-all shadow-lg shadow-rose-600/10 group">
+                            <svg class="w-5 h-5 transition-transform group-hover:rotate-12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
                             Logout System
                         </button>
                     </form>
@@ -77,7 +78,7 @@
             
             <div class="p-6 border-t border-slate-800">
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center border border-slate-700">
+                    <div class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center border border-slate-700 shadow-inner">
                         <svg class="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                     </div>
                     <div>
@@ -370,16 +371,5 @@
             // For parent window communication (if used inside an iframe, or just self)
             window.map = map;
         };
-    </script>
-    <!-- GLOBAL FLOATING LOGOUT (FOR GUARANTEED VISIBILITY) -->
-    <div class="fixed bottom-8 right-8 z-[9999] group">
-        <form action="{{ route('logout') }}" method="POST">
-            @csrf
-            <button type="submit" class="flex items-center gap-3 px-6 py-4 bg-rose-600 text-white rounded-2xl font-black text-sm shadow-[0_20px_50px_rgba(225,29,72,0.3)] hover:bg-rose-500 hover:-translate-y-1 transition-all active:scale-95 border-2 border-white/20">
-                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-                EXIT SYSTEM
-            </button>
-        </form>
-    </div>
 </body>
 </html>
