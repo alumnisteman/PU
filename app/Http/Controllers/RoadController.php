@@ -140,22 +140,25 @@ class RoadController extends Controller
                         'geometry' => $r->geometry ? json_decode($r->geometry) : null
                     ]);
 
-                // 3. Village Stats
-                $villageStats = DB::table('road_assets')
-                    ->join('regions', 'road_assets.region_id', '=', 'regions.id')
-                    ->select('regions.district as name', 
-                             DB::raw('SUM(length_km) as total_km'), 
-                             DB::raw('SUM(CASE WHEN condition_status LIKE "rusak%" THEN length_km ELSE 0 END) as rusak_km'))
-                    ->groupBy('regions.district')
-                    ->orderByDesc('rusak_km')
-                    ->limit(5)
-                    ->get()
-                    ->map(fn($v) => [
-                        'name' => $v->name,
-                        'total_km' => round($v->total_km, 2),
-                        'rusak_km' => round($v->rusak_km, 2),
-                        'percent' => $v->total_km > 0 ? round(($v->rusak_km / $v->total_km) * 100, 1) : 0
-                    ]);
+                // 3. Village Stats (With Fallback)
+                $villageStats = [];
+                try {
+                    $villageStats = DB::table('road_assets')
+                        ->leftJoin('regions', 'road_assets.region_id', '=', 'regions.id')
+                        ->select('regions.district as name', 
+                                 DB::raw('SUM(road_assets.length_km) as total_km'), 
+                                 DB::raw('SUM(CASE WHEN road_assets.condition_status LIKE "rusak%" THEN road_assets.length_km ELSE 0 END) as rusak_km'))
+                        ->groupBy('regions.district')
+                        ->orderByDesc('rusak_km')
+                        ->limit(5)
+                        ->get()
+                        ->map(fn($v) => [
+                            'name' => $v->name ?? 'Luar Wilayah',
+                            'total_km' => round($v->total_km, 2),
+                            'rusak_km' => round($v->rusak_km, 2),
+                            'percent' => $v->total_km > 0 ? round(($v->rusak_km / $v->total_km) * 100, 1) : 0
+                        ]);
+                } catch (\Exception $e) { /* ignore village errors */ }
 
                 return [
                     'total_km'        => round($stats['total_km'], 2),
