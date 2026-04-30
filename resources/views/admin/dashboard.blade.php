@@ -2,487 +2,384 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <script>
+        // Force clear Service Worker and Cache to ensure new code loads
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for(let registration of registrations) { registration.unregister(); }
+            });
+        }
+        if ('caches' in window) {
+            caches.keys().then(function(names) {
+                for (let name of names) caches.delete(name);
+            });
+        }
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SISMAP Modern | Admin Infrastructure Control Center</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- PWA Support -->
-    <link rel="manifest" href="/manifest.json?v=1.2">
-    <meta name="theme-color" content="#0f172a">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <!-- Map Libraries -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
     <!-- Marker Cluster -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
-    <link href="https://unpkg.com/mapillary-js@4.1.0/dist/mapillary.css?v=1.2" rel="stylesheet" />
-    <script src="https://unpkg.com/mapillary-js@4.1.0/dist/mapillary.js?v=1.2"></script>
+    <!-- Heatmap & Pusher -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+    <script src="https://js.pusher.com/7.2/pusher.min.js"></script>
     <style>
-        /* Global Interaction Fix */
-        html, body { pointer-events: auto !important; height: 100%; width: 100%; overflow-x: hidden; }
-        
-        /* Prioritaskan UI Resmi */
-        main { position: relative; z-index: 10 !important; pointer-events: auto !important; }
-        aside { position: relative; z-index: 50 !important; }
-        #map { z-index: 20 !important; cursor: grab !important; }
-        .leaflet-popup-pane { z-index: 700 !important; }
-        .leaflet-control-container { z-index: 800 !important; }
-
-        /* Tenggelamkan Elemen Pengganggu (Flare/Ignition/Debug) */
-        .flare-error-overlay, #ignition-error-button, [id^="flare"], [class^="flare"], .ignition-error-overlay, [id*="ignition"] { 
-            display: none !important; 
-            visibility: hidden !important; 
-            z-index: -9999 !important; 
-            pointer-events: none !important; 
-        }
-
-        #map { height: 500px; border-radius: 1.5rem; }
-        .mapillary-viewer { height: 300px; border-radius: 1rem; overflow: hidden; }
-
-        @media print {
-            aside, .no-print, button, .flex-row-reverse { display: none !important; }
-            main { padding: 0 !important; width: 100% !important; background: white !important; color: black !important; }
-            .bg-slate-900, .bg-slate-800\/40 { background: white !important; color: black !important; border: 1px solid #ddd !important; }
-            #map { height: 600px !important; border: 2px solid #000 !important; }
-            .text-white { color: black !important; }
-            .text-slate-400 { color: #666 !important; }
-            .grid { display: block !important; }
-            .bg-emerald-500\/10, .bg-rose-500\/10, .bg-amber-500\/10 { background: transparent !important; border: 2px solid #000 !important; margin-bottom: 10px !important; }
-        }
-
-        .health-badge {
-            padding: 2px 8px;
-            border-radius: 6px;
-            font-size: 10px;
-            font-weight: 800;
-            text-transform: uppercase;
-        }
+        html, body { background-color: #0f172a; color: #f8fafc; font-family: sans-serif; margin: 0; padding: 0; }
+        #map { height: 500px; border-radius: 1.5rem; background: #1e293b; }
+        .custom-popup .leaflet-popup-content-wrapper { background: #1e293b; color: white; border-radius: 12px; }
     </style>
 </head>
-<body class="bg-slate-900 text-white min-h-screen">
-    <div class="flex">
+<body class="bg-[#0f172a] text-slate-200 overflow-hidden">
+    <div class="flex h-screen w-full">
+        
         <!-- Sidebar -->
-        <aside class="w-64 border-r border-slate-800 h-screen sticky top-0 p-6 flex flex-col gap-8 z-[9999] bg-slate-900">
-            <div class="flex items-center gap-3">
-                <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A2 2 0 013 15.382V6.418a2 2 0 011.106-1.789L9 2l5 2.5L20 2v9m-9 9l5-2.5L20 11m-9 9V9l5-2.5L20 11m-9 9v-11"></path></svg>
+        <aside class="w-64 bg-slate-900 border-r border-slate-800 flex flex-col z-50 shadow-2xl">
+            <div class="p-6 border-b border-slate-800 flex items-center gap-3">
+                <div class="w-8 h-8 bg-blue-600 rounded-lg shadow-lg shadow-blue-600/20 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
                 </div>
-                <span class="font-bold text-lg tracking-tighter">ADMIN PORTAL</span>
+                <div>
+                    <h1 class="text-lg font-black tracking-tighter text-white leading-tight">SISMAP</h1>
+                    <p class="text-[9px] text-blue-400 font-bold uppercase tracking-widest">Command Center</p>
+                </div>
             </div>
             
-            <nav class="space-y-2">
-                <a href="/admin" class="flex items-center gap-3 p-3 rounded-xl bg-blue-600/10 text-blue-500 font-medium">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
-                    Dashboard
+            <nav class="flex-1 overflow-y-auto py-6 px-4 space-y-2">
+                <a href="#" class="flex items-center gap-3 px-4 py-3 bg-blue-600/10 text-blue-500 rounded-xl font-bold text-sm transition-colors border border-blue-600/20">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+                    Live Map
                 </a>
-                <a href="/admin/jalan" class="flex items-center gap-3 p-3 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 20l-5-2.5V6l5 2.5L14 6l5 2.5V18l-5-2.5L9 20z"></path></svg>
-                    Data Jalan
+                <a href="{{ route('jalan.create') }}" class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-xl font-bold text-sm transition-colors">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+                    Data Entry
                 </a>
-                <a href="/admin/jembatan" class="flex items-center gap-3 p-3 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 20l-5-2.5V6l5 2.5L14 6l5 2.5V18l-5-2.5L9 20z"></path></svg>
-                    Data Jembatan
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                    Reports
                 </a>
 
-                @if(optional(auth()->user())->user_level_id == 1)
-                <a href="/admin/users" class="flex items-center gap-3 p-3 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white transition-all">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-                    Manajemen User
-                </a>
-                @endif
-
-                <div class="pt-4 border-t border-slate-800 mt-4">
-                    <a href="/" class="flex items-center gap-3 p-3 rounded-xl text-emerald-500 hover:bg-emerald-500/10 transition-all">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
-                        Public Pulse
-                    </a>
+                <!-- New Visible Logout Button in Nav -->
+                <div class="pt-10">
+                    <form action="{{ route('logout') }}" method="POST">
+                        @csrf
+                        <button type="submit" class="w-full flex items-center gap-3 px-4 py-3 text-rose-400 hover:text-white hover:bg-rose-600 rounded-xl font-bold text-sm transition-all shadow-lg shadow-rose-600/10">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                            Logout System
+                        </button>
+                    </form>
                 </div>
             </nav>
-
-            <!-- User Profile & Logout -->
-            <div class="mt-auto pt-6 border-t border-slate-800">
-                <div class="flex items-center gap-3 mb-4 px-2">
-                    <div class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center font-bold text-white border border-slate-700 shadow-lg">
-                        {{ substr(optional(auth()->user())->user_fullname ?? 'U', 0, 1) }}
+            
+            <div class="p-6 border-t border-slate-800">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center border border-slate-700">
+                        <svg class="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                     </div>
-                    <div class="overflow-hidden">
-                        <div class="text-xs font-bold text-white truncate">{{ optional(auth()->user())->user_fullname ?? 'User' }}</div>
-                        <div class="text-[9px] text-slate-500 font-black uppercase tracking-widest">{{ optional(auth()->user()->level)->level_name ?? 'Level' }}</div>
+                    <div>
+                        <p class="text-xs font-bold text-slate-200">Admin Provinsi</p>
+                        <p class="text-[10px] text-emerald-400 font-mono mt-0.5 flex items-center gap-1">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Online
+                        </p>
                     </div>
                 </div>
-                <form action="{{ route('logout') }}" method="POST">
-                    @csrf
-                    <button type="submit" class="w-full flex items-center gap-3 p-3 rounded-xl text-rose-500 hover:bg-rose-500/10 transition-all font-bold text-sm">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
-                        Logout
-                    </button>
-                </form>
             </div>
         </aside>
 
-        <!-- Main Content -->
-        <main class="flex-1 p-8">
-            <!-- Header -->
-            <div class="flex justify-between items-center mb-10">
-                <div>
-                    <h1 class="text-3xl font-black mb-2 text-blue-500">North Maluku</h1>
-                    <p class="text-slate-400 font-medium">Infrastructure Control Center</p>
+        <!-- Main Content Area -->
+        <main class="flex-1 flex flex-col min-w-0 bg-slate-950">
+            
+            <!-- Topbar Stats -->
+            <header class="h-20 bg-slate-900 border-b border-slate-800 flex items-center px-6 gap-6 shrink-0 shadow-sm z-40">
+                <div class="flex flex-col">
+                    <span class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Status Jaringan</span>
+                    <div class="flex items-center gap-2 mt-1">
+                        <span class="w-2.5 h-2.5 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse"></span>
+                        <span class="text-xs font-black text-emerald-400 tracking-wider">LIVE</span>
+                    </div>
                 </div>
-                <div class="flex items-center gap-4">
-                    <button onclick="window.print()" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-2">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
-                        Generate Report
-                    </button>
-                    @if(in_array(optional(auth()->user())->user_level_id, [1, 3]))
-                    <a href="/admin/jalan/create" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg shadow-blue-600/20 transition-all">
-                        + Tambah Data
-                    </a>
-                    @endif
-                </div>
-            </div>
-
-            <!-- KPI Cards (Sinkron dengan SISMAP PULSE) -->
-            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">
-                <div class="bg-slate-800/40 border border-slate-700 p-5 rounded-2xl col-span-1">
-                    <p class="text-slate-500 text-[10px] font-bold mb-2 uppercase tracking-widest">Total Jalan</p>
-                    <h2 class="text-3xl font-black text-white" id="total_km">-</h2>
-                </div>
-                <div class="bg-emerald-500/10 border border-emerald-500/20 p-5 rounded-2xl">
-                    <p class="text-emerald-400 text-[10px] font-bold mb-2 uppercase tracking-widest">Baik</p>
-                    <h2 class="text-3xl font-black text-emerald-400" id="count_baik">-</h2>
-                </div>
-                <div class="bg-amber-500/10 border border-amber-500/20 p-5 rounded-2xl">
-                    <p class="text-amber-400 text-[10px] font-bold mb-2 uppercase tracking-widest">Sedang</p>
-                    <h2 class="text-3xl font-black text-amber-400" id="count_sedang">-</h2>
-                </div>
-                <div class="bg-orange-500/10 border border-orange-500/20 p-5 rounded-2xl">
-                    <p class="text-orange-400 text-[10px] font-bold mb-2 uppercase tracking-widest">Rusak Ringan</p>
-                    <h2 class="text-3xl font-black text-orange-400" id="count_rusak_ringan">-</h2>
-                </div>
-                <div class="bg-rose-500/10 border border-rose-500/20 p-5 rounded-2xl">
-                    <p class="text-rose-500 text-[10px] font-bold mb-2 uppercase tracking-widest">Rusak Berat</p>
-                    <h2 class="text-3xl font-black text-rose-500" id="count_rusak_berat">-</h2>
-                </div>
-            </div>
-
-            <!-- Realtime Map Monitor -->
-            <div class="grid grid-cols-1 lg:grid-cols-4 gap-8 mb-10">
-                <div class="lg:col-span-3 bg-slate-800/40 border border-slate-700 p-4 rounded-[2rem] shadow-2xl overflow-hidden">
-                    <div class="p-4 flex items-center justify-between">
-                        <h3 class="text-sm font-black uppercase tracking-widest text-slate-400">Realtime Infrastructure Monitor</h3>
-                        <div class="flex gap-2">
-                            <span class="flex items-center gap-1.5 px-3 py-1 bg-rose-500/10 text-rose-500 text-[10px] font-black rounded-full uppercase border border-rose-500/20 animate-pulse">Live AI Analysis</span>
+                
+                <div class="h-8 w-px bg-slate-800 mx-2"></div>
+                
+                <div class="flex items-center gap-8 flex-1">
+                    <div>
+                        <span class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Total Infrastruktur</span>
+                        <div class="flex items-baseline gap-2">
+                            <span class="text-xl font-black text-white" id="total_km">...</span>
                         </div>
                     </div>
-                    <div id="map" class="z-10 shadow-inner"></div>
-                </div>
-                <div class="lg:col-span-1 flex flex-col gap-6">
-                    <div class="bg-slate-800/40 border border-slate-700 p-6 rounded-[2rem]">
-                        <h3 class="text-sm font-black uppercase tracking-widest text-slate-400 mb-6">Street Level View</h3>
-                        <div id="mly" class="mapillary-viewer bg-slate-900 border border-slate-700 flex items-center justify-center">
-                            <p class="text-[10px] text-slate-600 font-bold text-center px-6">Klik marker di peta untuk memuat Street View (Mapillary)</p>
-                        </div>
+                    <div>
+                        <span class="text-[10px] text-emerald-500 font-bold uppercase tracking-widest">Kondisi Baik</span>
+                        <div class="text-xl font-black text-emerald-400" id="count_baik">...</div>
                     </div>
-                    <div class="bg-blue-600/5 border border-blue-600/10 p-6 rounded-[2rem] flex-1">
-                        <h3 class="text-[10px] font-black uppercase tracking-[0.2em] text-blue-500 mb-4">Legend</h3>
-                        <div class="space-y-3">
-                            <div class="flex items-center gap-3 text-xs font-bold text-slate-400">
-                                <div class="w-3 h-3 rounded-full bg-rose-500"></div> Kerusakan Berat
-                            </div>
-                            <div class="flex items-center gap-3 text-xs font-bold text-slate-400">
-                                <div class="w-3 h-3 rounded-full bg-amber-500"></div> Kerusakan Sedang
-                            </div>
-                            <div class="flex items-center gap-3 text-xs font-bold text-slate-400">
-                                <div class="w-3 h-3 rounded-full bg-emerald-500"></div> Kondisi Baik
+                    <div>
+                        <span class="text-[10px] text-rose-500 font-bold uppercase tracking-widest">Rusak Berat (Prioritas)</span>
+                        <div class="text-xl font-black text-rose-500" id="count_rusak_berat">...</div>
+                    </div>
+                </div>
+                
+                <div id="debug-error" class="hidden px-4 py-2 bg-rose-500/10 border border-rose-500/20 rounded-lg max-w-xs overflow-hidden">
+                    <p class="text-rose-500 text-[10px] font-black uppercase tracking-widest mb-1 truncate">System Error</p>
+                    <ul id="error-list" class="text-[9px] text-rose-400 font-mono list-disc ml-3 truncate"></ul>
+                </div>
+            </header>
+
+            <!-- Map & Right Panel Layout -->
+            <div class="flex-1 flex min-h-0">
+                
+                <!-- Center Map -->
+                <div class="flex-1 p-6 flex flex-col">
+                    <div class="flex-1 bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl relative">
+                        <div id="map" class="absolute inset-0"></div>
+                        
+                        <!-- Map Floating Legend -->
+                        <div class="absolute bottom-6 left-6 z-[400] bg-slate-900/90 backdrop-blur-md border border-slate-700 p-4 rounded-xl shadow-xl">
+                            <h3 class="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3">Legenda Peta</h3>
+                            <div class="space-y-2">
+                                <div class="flex items-center gap-2 text-[10px] font-bold text-slate-300"><div class="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_5px_rgba(225,29,72,0.5)]"></div> Rusak Berat</div>
+                                <div class="flex items-center gap-2 text-[10px] font-bold text-slate-300"><div class="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-[0_0_5px_rgba(245,158,11,0.5)]"></div> Rusak Sedang</div>
+                                <div class="flex items-center gap-2 text-[10px] font-bold text-slate-300"><div class="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]"></div> Kondisi Baik</div>
+                                <div class="h-px bg-slate-700 my-2"></div>
+                                <div class="flex items-center gap-2 text-[10px] font-bold text-blue-400"><div class="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-[0_0_5px_rgba(59,130,246,0.5)]"></div> Tim Lapangan (Live)</div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <!-- Chart -->
-                <div class="lg:col-span-1 bg-slate-800/40 border border-slate-700 p-8 rounded-2xl">
-                    <h3 class="text-sm font-black uppercase tracking-widest text-slate-400 mb-8">Kondisi Jalan (%)</h3>
-                    <canvas id="conditionChart"></canvas>
-                </div>
+                <!-- Right Panel (30%) -->
+                <aside class="w-[380px] bg-slate-900 border-l border-slate-800 flex flex-col shrink-0 overflow-hidden shadow-2xl">
+                    
+                    <!-- Chart Section -->
+                    <div class="p-6 border-b border-slate-800 shrink-0">
+                        <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 flex justify-between items-center">
+                            Distribusi Kerusakan
+                            <svg class="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"/></svg>
+                        </h3>
+                        <div class="h-40 w-full relative">
+                            <canvas id="conditionChart"></canvas>
+                        </div>
+                    </div>
 
-                <!-- Priority Table -->
-                <div class="lg:col-span-2 bg-slate-800/40 border border-slate-700 rounded-2xl overflow-hidden shadow-xl">
-                    <div class="p-6 border-b border-slate-700 flex items-center justify-between bg-slate-800/60">
-                        <h3 class="text-sm font-black uppercase tracking-widest text-slate-200">Antrian Perbaikan</h3>
-                        <span class="px-3 py-1 bg-blue-600/20 text-blue-500 text-[10px] font-black rounded-full uppercase tracking-tighter">Smart Analysis</span>
+                    <!-- Priority Roads List -->
+                    <div class="flex-1 overflow-y-auto p-0 flex flex-col bg-slate-900/50">
+                        <div class="p-4 bg-rose-500/5 border-b border-rose-500/10 sticky top-0 backdrop-blur-md z-10 flex justify-between items-center">
+                            <h3 class="text-[10px] font-black uppercase tracking-widest text-rose-500 flex items-center gap-2">
+                                <span class="relative flex h-2 w-2">
+                                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                                  <span class="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                                </span>
+                                Top Priority Roads
+                            </h3>
+                            <span class="text-[9px] text-rose-400/70 font-mono font-bold bg-rose-500/10 px-2 py-0.5 rounded">AI SCORED</span>
+                        </div>
+                        
+                        <div id="priority_list" class="flex-1 p-2 space-y-2">
+                            <!-- Populated via JS -->
+                            <div class="p-8 text-center text-slate-600 text-xs italic">Memuat data prioritas...</div>
+                        </div>
                     </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left">
-                            <thead class="bg-slate-900/40 text-slate-500 text-[10px] uppercase font-black tracking-widest">
-                                <tr>
-                                    <th class="p-6">Ruas Jalan</th>
-                                    <th class="p-6">Kondisi</th>
-                                    <th class="p-6">Prioritas</th>
-                                    <th class="p-6 text-right">Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody id="priority_table" class="text-sm">
-                                <!-- Data injected here -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                    
+                </aside>
+                
             </div>
         </main>
     </div>
 
     <script>
-        fetch('/api/roads/dashboard')
-            .then(res => res.json())
-            .then(data => {
-                document.getElementById('total_km').innerText = data.total_km + ' KM';
-                document.getElementById('count_baik').innerText = data.condition_stats.baik;
-                document.getElementById('count_sedang').innerText = data.condition_stats.sedang;
-                document.getElementById('count_rusak').innerText = data.condition_stats.rusak;
-
-                const table = document.getElementById('priority_table');
-                data.priority_roads.forEach(road => {
-                    const statusColor = road.condition === 'baik' ? 'text-emerald-500' : (road.condition === 'sedang' ? 'text-amber-500' : 'text-rose-500');
-                    table.innerHTML += `
-                        <tr class="border-b border-slate-800/50 hover:bg-slate-800/40 transition-colors">
-                            <td class="p-6">
-                                <div class="font-bold text-slate-200">${road.name}</div>
-                                <div class="text-[10px] font-mono text-slate-600 mt-1">${road.code}</div>
-                            </td>
-                            <td class="p-6">
-                                <span class="px-2 py-1 bg-slate-900/60 rounded text-[10px] font-black uppercase ${statusColor}">
-                                    ${road.condition.replace('_', ' ')}
-                                </span>
-                            </td>
-                            <td class="p-6">
-                                <div class="flex items-center gap-3">
-                                    <div class="flex-1 h-1.5 bg-slate-900 rounded-full overflow-hidden">
-                                        <div class="h-full bg-blue-600" style="width: ${Math.min(road.id * 10, 100)}%"></div>
-                                    </div>
-                                    <span class="text-xs font-black text-slate-400">${Math.min(road.id * 10, 100)}</span>
-                                </div>
-                            </td>
-                            <td class="p-6 text-right">
-                                <div class="flex justify-end gap-3">
-                                    <a href="/admin/jalan/${road.id}/edit" class="text-slate-400 hover:text-white transition-colors">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-                                    </a>
-                                    <a href="/admin/jalan/${road.id}" class="text-blue-500 hover:text-blue-400 transition-colors">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
-                                    </a>
-                                </div>
-                            </td>
-                        </tr>
-                    `;
-                });
-
-                new Chart(document.getElementById('conditionChart'), {
-                    type: 'doughnut',
-                    data: {
-                        labels: ['Baik', 'Sedang', 'Rusak'],
-                        datasets: [{
-                            data: [data.condition_stats.baik, data.condition_stats.sedang, data.condition_stats.rusak],
-                            backgroundColor: ['#10b981', '#f59e0b', '#e11d48'],
-                            borderWidth: 0,
-                            hoverOffset: 15
-                        }]
-                    },
-                    options: {
-                        cutout: '75%',
-                        plugins: {
-                            legend: { display: true, position: 'bottom', labels: { color: '#94a3b8', font: { weight: 'bold', size: 10 } } }
-                        }
-                    }
-                });
-            });
-
-        // --- 2. Realtime Map & Heatmap ---
-        const map = L.map('map', {
-            zoomControl: false,
-            attributionControl: false
-        }).setView([-0.7893, 127.3750], 13); // Ternate focus
-
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
-
-        let reportMarkers = L.layerGroup().addTo(map);
-        let heatLayer = null;
-        let mlyViewer = null;
-
-        function getColor(severity) {
-            return {
-                'ringan': '#fbbf24', // Amber
-                'sedang': '#f97316', // Orange
-                'berat': '#e11d48'  // Rose
-            }[severity] || '#3b82f6';
+        function logError(msg) {
+            const el = document.getElementById('debug-error');
+            if(el) {
+                el.classList.remove('hidden');
+                const li = document.createElement('li'); li.innerText = msg;
+                document.getElementById('error-list').appendChild(li);
+            }
         }
 
-        async function loadReports() {
+        let map, markersGroup, conditionChart, heatLayer;
+        let workerMarkers = {};
+
+        function initMap() {
             try {
-                const res = await fetch('/api/reports');
-                const reports = await res.json();
-                const response = await fetch('/api/damage-reports');
-                const data = await response.json();
+                // Initialize map inside the new layout
+                map = L.map('map', { zoomControl: false, attributionControl: false }).setView([-0.7893, 127.3750], 12);
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
                 
-                let heatData = [];
-                markersGroup.clearLayers();
-                const bounds = L.latLngBounds();
+                // Add zoom control at top right
+                L.control.zoom({ position: 'topright' }).addTo(map);
+                
+                markersGroup = L.markerClusterGroup().addTo(map);
+                heatLayer = L.heatLayer([], {radius: 25, blur: 15, maxZoom: 17}).addTo(map);
+            } catch (e) { logError("Map Error: " + e.message); }
+        }
 
-                data.forEach(report => {
-                    const lat = parseFloat(report.latitude);
-                    const lon = parseFloat(report.longitude);
-                    
-                    if (!isNaN(lat) && !isNaN(lon)) {
-                        const color = report.severity === 'berat' ? '#f43f5e' : (report.severity === 'sedang' ? '#fbbf24' : '#10b981');
-                        
-                        const score = report.severity === 'berat' ? Math.floor(Math.random() * 40) + 10 : (report.severity === 'sedang' ? Math.floor(Math.random() * 30) + 50 : Math.floor(Math.random() * 20) + 80);
-                        const healthClass = score > 80 ? 'bg-emerald-500/20 text-emerald-500' : (score > 50 ? 'bg-amber-500/20 text-amber-500' : 'bg-rose-500/20 text-rose-500');
-                        
-                        // Tambah ke Heatmap
-                        heatData.push([lat, lon, report.severity === 'berat' ? 1.0 : 0.5]);
-                        
-                        // Buat Marker untuk Cluster
-                        const marker = L.circleMarker([lat, lon], {
-                            radius: 6,
-                            fillColor: color,
-                            color: "#fff",
-                            weight: 2,
-                            opacity: 1,
-                            fillOpacity: 0.8
-                        });
+        const workerIcon = L.divIcon({
+            className: 'custom-div-icon',
+            html: `<div class="w-4 h-4 rounded-full bg-blue-500 border-2 border-white shadow-[0_0_10px_rgba(59,130,246,0.8)] animate-pulse"></div>`,
+            iconSize: [16, 16],
+            iconAnchor: [8, 8]
+        });
 
-                        const popupContent = `
-                            <div class="p-3 text-slate-900 min-w-[220px]">
-                                <div class="flex justify-between items-center mb-2">
-                                    <h4 class="font-bold text-sm">${report.title}</h4>
-                                    <span class="px-2 py-0.5 rounded text-[9px] font-black ${healthClass}">Score: ${score}</span>
-                                </div>
-                                <p class="text-[10px] text-slate-500 mb-3">${report.description}</p>
-                                <div class="flex flex-col gap-2">
-                                    <button onclick="loadStreetView(${lat}, ${lon})" class="w-full px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-all shadow-md shadow-blue-600/20">
-                                        Lihat Street View
-                                    </button>
-                                </div>
-                            </div>
-                        `;
-
-                        marker.bindPopup(popupContent, {
-                            className: 'custom-popup'
-                        });
-                        
-                        markersGroup.addLayer(marker);
-                        bounds.extend([lat, lon]);
-                    }
-                });
-
-                map.addLayer(markersGroup);
-
-                // Auto-Focus: Fit map bounds to show all markers
-                if (heatData.length > 0) {
-                    map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
-                }
-
-            } catch (err) {
-                console.error("Map load failed:", err);
+        function updateWorkerMarker(worker) {
+            if (!workerMarkers[worker.id]) {
+                workerMarkers[worker.id] = L.marker([worker.lat, worker.lng], {icon: workerIcon})
+                    .bindPopup(`<div class="font-bold text-xs text-slate-800">${worker.name}</div><div class="text-[10px] text-blue-600 font-bold uppercase">${worker.village || 'Detecting...'}</div>`)
+                    .addTo(map);
+            } else {
+                workerMarkers[worker.id].setLatLng([worker.lat, worker.lng]);
+                workerMarkers[worker.id].setPopupContent(`<div class="font-bold text-xs text-slate-800">${worker.name}</div><div class="text-[10px] text-blue-600 font-bold uppercase">${worker.village || 'Detecting...'}</div>`);
             }
         }
 
-        // --- 3. Mapillary Street View ---
-        async function loadStreetView(lat, lon) {
-            const mlyContainer = document.getElementById('mly');
-            const token = '{{ config('services.mapillary.token') }}';
-
-            if (!token || token === 'YOUR_TOKEN_HERE') {
-                mlyContainer.innerHTML = `
-                    <div class="p-6 text-center">
-                        <p class="text-xs text-amber-500 font-black uppercase mb-2">Token Required</p>
-                        <p class="text-[9px] text-slate-500 mb-4">Dapatkan token gratis di mapillary.com/dashboard/developers</p>
-                        <a href="https://www.mapillary.com/dashboard/developers" target="_blank" class="px-4 py-2 bg-slate-700 text-white text-[9px] font-bold rounded-md">Buka Dashboard Mapillary</a>
-                    </div>
-                `;
-                return;
-            }
-
+        function initPusher() {
             try {
-                mlyContainer.innerHTML = '<div class="animate-pulse text-[10px] text-blue-500 font-bold uppercase tracking-widest">Searching nearby imagery...</div>';
+                const pusher = new Pusher('key', {
+                    wsHost: window.location.hostname,
+                    wsPort: 6001,
+                    forceTLS: false,
+                    disableStats: true,
+                    enabledTransports: ['ws', 'wss']
+                });
 
-                // Search for nearby images via Mapillary API v4
-                // Increased radius to 0.01 (approx 1km) for better coverage
-                const radius = 0.01; 
-                const bbox = `${lon-radius},${lat-radius},${lon+radius},${lat+radius}`;
-                const searchUrl = `https://graph.mapillary.com/images?access_token=${token}&fields=id,geometry&bbox=${bbox}&limit=1`;
+                const channel = pusher.subscribe('workers');
+                channel.bind('App\\Events\\WorkerLocationUpdated', function(data) {
+                    updateWorkerMarker(data.worker);
+                });
+            } catch (e) { logError("Pusher Error: " + e.message); }
+        }
 
-                const res = await fetch(searchUrl);
+        let simLat = -0.789300; // Ternate City Center
+        let simLng = 127.375000;
+        function startSimulation() {
+            setInterval(() => {
+                // Moving slowly through Ternate streets
+                simLat += (Math.random() - 0.5) * 0.0005;
+                simLng += (Math.random() - 0.5) * 0.0005;
+                
+                fetch('/api/worker/update-location', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+                    body: JSON.stringify({ 
+                        id: 1, 
+                        name: "Tim Reaksi Cepat (TRC)", 
+                        lat: simLat, 
+                        lng: simLng 
+                    })
+                }).catch(e => console.log('Sim error', e));
+            }, 4000);
+        }
+
+        async function loadData() {
+            try {
+                const res = await fetch('/api/roads/dashboard?t=' + Date.now());
                 const data = await res.json();
-
-                if (data.data && data.data.length > 0) {
-                    const imageId = data.data[0].id;
-                    
-                    if (!mlyViewer) {
-                        mlyViewer = new mapillary.Viewer({
-                            accessToken: token,
-                            container: 'mly',
-                            component: { cover: false, stockControls: true }
-                        });
-                    }
-                    
-                    mlyViewer.moveTo(imageId).catch(e => console.error(e));
-                } else {
-                    mlyContainer.innerHTML = `
-                        <div class="text-center px-4">
-                            <p class="text-[9px] text-slate-500 font-bold uppercase mb-2">Tidak ada foto di sekitar lokasi ini</p>
-                            <p class="text-[8px] text-slate-700 font-mono mb-4">Coord: ${lat.toFixed(4)}, ${lon.toFixed(4)}</p>
-                            <a href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lon}" target="_blank" class="px-4 py-2 bg-blue-600 text-white text-[9px] font-bold rounded-md hover:bg-blue-500 transition-all uppercase tracking-widest">Buka Google Street View</a>
-                        </div>
-                    `;
-                }
-            } catch (err) {
-                console.error("Mapillary Search Error:", err);
-                mlyContainer.innerHTML = '<p class="text-[9px] text-rose-500 font-bold text-center px-6 uppercase tracking-widest">Gagal memuat API Mapillary</p>';
-            }
-        }
-
-        async function loadStats() {
-            try {
-                const timestamp = new Date().getTime();
-                const res = await fetch(`/api/dashboard/stats?t=${timestamp}`);
-                const stats = await res.json();
                 
-                document.getElementById('total_km').innerText = stats.total + " Jalan";
-                document.getElementById('count_baik').innerText = stats.baik;
-                document.getElementById('count_sedang').innerText = stats.sedang;
-                document.getElementById('count_rusak_ringan').innerText = stats.rusak_ringan;
-                document.getElementById('count_rusak_berat').innerText = stats.rusak_berat;
-            } catch (err) {
-                console.error("Stats load failed:", err);
-            }
+                // Update Topbar Stats
+                if(document.getElementById('total_km')) document.getElementById('total_km').innerText = data.total_km + ' KM';
+                if(document.getElementById('count_baik')) document.getElementById('count_baik').innerText = data.condition_stats.baik;
+                if(document.getElementById('count_rusak_berat')) document.getElementById('count_rusak_berat').innerText = data.condition_stats.rusak_berat;
+
+                // Update Chart in Right Panel
+                const ctxEl = document.getElementById('conditionChart');
+                if(ctxEl) {
+                    const ctx = ctxEl.getContext('2d');
+                    if (conditionChart) conditionChart.destroy();
+                    conditionChart = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['Baik', 'Sedang', 'Rusak Ringan', 'Rusak Berat'],
+                            datasets: [{
+                                data: [data.condition_stats.baik, data.condition_stats.sedang, data.condition_stats.rusak_ringan, data.condition_stats.rusak_berat],
+                                backgroundColor: ['#10b981', '#f59e0b', '#f97316', '#e11d48'], 
+                                borderWidth: 0,
+                                hoverOffset: 4
+                            }]
+                        },
+                        options: { 
+                            cutout: '80%', 
+                            responsive: true, 
+                            maintainAspectRatio: false,
+                            plugins: { 
+                                legend: { display: false } 
+                            } 
+                        }
+                    });
+                }
+
+                // Update Priority List in Right Panel
+                const listEl = document.getElementById('priority_list');
+                if(listEl) {
+                    listEl.innerHTML = '';
+                    if(data.priority_roads.length === 0) {
+                        listEl.innerHTML = '<div class="p-8 text-center text-slate-500 text-xs italic">Semua infrastruktur dalam kondisi baik.</div>';
+                    }
+
+                    // Heatmap data
+                    if(heatLayer) {
+                        const heatPoints = data.priority_roads
+                            .filter(r => r.condition === 'rusak_berat' && r.lat && r.lng)
+                            .map(r => [r.lat, r.lng, 1.0]);
+                        heatLayer.setLatLngs(heatPoints);
+                    }
+                    data.priority_roads.slice(0, 15).forEach((road, index) => {
+                        const budgetJuta = (road.estimated_budget / 1000000).toFixed(1);
+                        const isCritical = road.condition === 'rusak_berat';
+                        
+                        // Focus Map on click
+                        const clickHandler = `if(window.parent && window.parent.map) { window.parent.map.setView([${road.lat || -0.7893}, ${road.lng || 127.3750}], 17, {animate:true}); }`;
+                        
+                        listEl.innerHTML += `
+                            <div class="group bg-slate-800/40 hover:bg-slate-800 border border-slate-700 hover:border-slate-600 p-3 rounded-xl cursor-pointer transition-all ${isCritical ? 'border-rose-500/30 bg-rose-500/5' : ''}" onclick="${clickHandler}">
+                                <div class="flex justify-between items-start mb-2">
+                                    <div>
+                                        <div class="font-bold text-sm text-slate-200 group-hover:text-blue-400 transition-colors">${road.name}</div>
+                                        <div class="text-[10px] text-slate-500 font-mono mt-0.5 flex items-center gap-2">
+                                            <span>${road.code}</span>
+                                            <span class="w-1 h-1 rounded-full bg-slate-600"></span>
+                                            <span class="${isCritical ? 'text-rose-400' : 'text-amber-400'} uppercase tracking-wider">${road.condition.replace('_', ' ')}</span>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="text-[22px] font-black ${isCritical ? 'text-rose-500' : 'text-blue-400'} leading-none">${road.priority_score}</div>
+                                        <div class="text-[8px] font-bold text-slate-500 uppercase tracking-widest mt-1">SCORE</div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2 text-xs">
+                                    <div class="text-slate-400 font-medium bg-slate-900 px-2 py-1 rounded border border-slate-700/50">
+                                        Rp ${budgetJuta} JT
+                                    </div>
+                                </div>
+                            </div>`;
+                    });
+                }
+            } catch (e) { logError("Data Error: " + e.message); }
         }
 
-        // Initial load
-        loadReports();
-        loadStats();
-        
-        // Auto-refresh every 30 seconds
-        setInterval(() => {
-            loadReports();
-            loadStats();
-        }, 30000);
+        window.onload = () => { 
+            initMap(); 
+            initPusher();
+            loadData(); 
+            setInterval(loadData, 30000); 
+            
+            // Start Live Worker Tracking Simulation
+            startSimulation();
 
-        // PWA Service Worker Registration
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js').then(registration => {
-                    console.log('SW registered: ', registration);
-                }).catch(registrationError => {
-                    console.log('SW registration failed: ', registrationError);
-                });
-            });
-        }
+            // For parent window communication (if used inside an iframe, or just self)
+            window.map = map;
+        };
     </script>
+    <!-- GLOBAL FLOATING LOGOUT (FOR GUARANTEED VISIBILITY) -->
+    <div class="fixed bottom-8 right-8 z-[9999] group">
+        <form action="{{ route('logout') }}" method="POST">
+            @csrf
+            <button type="submit" class="flex items-center gap-3 px-6 py-4 bg-rose-600 text-white rounded-2xl font-black text-sm shadow-[0_20px_50px_rgba(225,29,72,0.3)] hover:bg-rose-500 hover:-translate-y-1 transition-all active:scale-95 border-2 border-white/20">
+                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                EXIT SYSTEM
+            </button>
+        </form>
+    </div>
 </body>
 </html>

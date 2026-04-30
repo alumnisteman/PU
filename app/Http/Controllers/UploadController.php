@@ -8,12 +8,14 @@ class UploadController extends Controller
 {
     public function store(Request $req)
     {
+        $uploadField = $req->hasFile('photo') ? 'photo' : 'file';
+        
         $req->validate([
-            'file' => 'required|file|mimes:jpg,png,pdf|max:2048'
+            $uploadField => 'required|file|mimes:jpg,jpeg,png,pdf|max:10240' // Increased max size for mobile photos
         ]);
 
         // Secure upload path based on current year for organization
-        $path = $req->file('file')->store('uploads/' . date('Y'), 'public');
+        $path = $req->file($uploadField)->store('uploads/' . date('Y'), 'public');
 
         return response()->json([
             'path' => $path,

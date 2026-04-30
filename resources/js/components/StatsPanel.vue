@@ -7,7 +7,7 @@
           <div class="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_12px_#10b981]"></div>
           <h2 class="text-sm font-black tracking-widest uppercase text-slate-200">Intelligence Panel</h2>
         </div>
-        <p class="text-[10px] text-slate-600 font-mono">Kab. Halmahera Selatan</p>
+        <p class="text-[10px] text-slate-600 font-mono">Kota Ternate</p>
       </div>
 
       <!-- Meilisearch Search Bar -->
@@ -22,7 +22,7 @@
           @input="onSearchInput"
           type="search" 
           class="block w-full p-2.5 pl-10 text-xs text-white bg-slate-900/50 border border-slate-700 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 placeholder-slate-500 transition-all shadow-inner" 
-          placeholder="Cari jalan (Meilisearch)..." 
+          placeholder="Cari jalan atau kode..." 
           required 
         />
         <div v-if="isSearching" class="absolute inset-y-0 right-3 flex items-center">
@@ -51,16 +51,26 @@
       </div>
     </div>
 
-    <!-- AI Analytics / Severity Distribution -->
+    <!-- Priority Intelligence -->
     <div class="p-4 border-b border-slate-800/60 bg-indigo-500/5">
-      <h3 class="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-3">AI Severity Distribution</h3>
-      <div class="space-y-2">
-        <div v-for="(count, type) in aiStats" :key="type" class="flex items-center gap-3">
-          <span class="text-[10px] text-slate-400 w-20 capitalize">{{ type }}</span>
-          <div class="flex-grow h-1.5 bg-slate-800 rounded-full overflow-hidden">
-            <div class="h-full bg-indigo-500" :style="{ width: (count / 10 * 100) + '%' }"></div>
+      <h3 class="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-3 flex justify-between">
+        <span>Priority Intelligence</span>
+        <span class="text-slate-500">Urgensi Perbaikan</span>
+      </h3>
+      <div class="space-y-2 max-h-[300px] overflow-y-auto pr-1" style="scrollbar-width:none">
+        <div v-for="road in priorityRoads" :key="road.id" 
+             @click="onRoadClick(road)"
+             class="group bg-slate-900/60 border border-slate-800/50 rounded-xl p-2.5 hover:border-indigo-500/50 transition-all cursor-pointer">
+          <div class="flex justify-between items-start mb-1">
+            <h4 class="text-[11px] font-bold text-slate-200 group-hover:text-indigo-400 truncate w-32">{{ road.name }}</h4>
+            <div class="flex flex-col items-end">
+              <span class="text-[9px] font-black text-indigo-400">Score: {{ road.priority_score }}</span>
+            </div>
           </div>
-          <span class="text-[10px] font-bold text-slate-500">{{ count }}</span>
+          <div class="flex items-center justify-between mt-1">
+            <span class="text-[8px] text-slate-500 font-mono">{{ road.code }}</span>
+            <span class="text-[9px] font-black text-slate-400">Rp {{ (road.estimated_budget / 1000000).toFixed(1) }} Juta</span>
+          </div>
         </div>
       </div>
     </div>
@@ -78,7 +88,8 @@
         </div>
         
         <div v-for="road in damageReports" :key="road.id"
-             class="bg-slate-900/40 p-3.5 rounded-xl border transition-all cursor-pointer group"
+             @click="onRoadClick(road)"
+             class="bg-slate-900/40 p-3.5 rounded-xl border transition-all cursor-pointer group hover:bg-slate-800/60 active:scale-[0.98]"
              :class="road.condition === 'rusak_berat' ? 'border-red-900/30 hover:border-red-500/40' : 'border-slate-800 hover:border-indigo-500/40'">
           
           <div class="flex justify-between items-start mb-2">
@@ -114,7 +125,7 @@
     <div class="px-4 py-3 border-t border-slate-800/60 flex justify-between items-center bg-slate-950">
       <div class="flex items-center gap-2">
         <div class="w-1.5 h-1.5 rounded-full animate-pulse" :class="searchMode ? 'bg-indigo-500' : 'bg-emerald-500'"></div>
-        <span class="text-[9px] font-black text-slate-600 uppercase tracking-widest">{{ searchMode ? 'Meilisearch Active' : 'Live Sync' }}</span>
+        <span class="text-[9px] font-black text-slate-600 uppercase tracking-widest">{{ searchMode ? 'Search Active' : 'Live Sync' }}</span>
       </div>
       <span class="text-[9px] font-mono text-slate-800">SISMAP-PULSE v3.0</span>
     </div>
@@ -127,6 +138,7 @@ import { ref, onMounted, computed } from 'vue';
 const stats = ref({ baik: 0, sedang: 0, rusak_ringan: 0, rusak_berat: 0 });
 const aiStats = ref({});
 const damageReports = ref([]);
+const priorityRoads = ref([]);
 const searchQuery = ref('');
 const isSearching = ref(false);
 let searchTimeout = null;
@@ -144,6 +156,7 @@ async function loadData(query = '') {
     
     stats.value = data.condition_stats;
     aiStats.value = data.ai_stats || {};
+    priorityRoads.value = data.priority_roads || [];
     
     // If searching, show all matching roads. If not, only show roads with damage
     if (query) {
@@ -157,6 +170,21 @@ async function loadData(query = '') {
     console.error("Panel Error:", e);
     isSearching.value = false;
   }
+}
+
+function onRoadClick(road) {
+   if (!road.lat || !road.lng) return;
+   
+   // Dispatch a custom event that the map can listen to
+   window.dispatchEvent(new CustomEvent('sismap-zoom-to', {
+     detail: {
+       id: road.id,
+       name: road.name,
+       lat: road.lat,
+       lng: road.lng,
+       condition: road.condition
+     }
+   }));
 }
 
 function onSearchInput() {

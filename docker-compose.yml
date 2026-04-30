@@ -1,0 +1,99 @@
+services:
+  # 🌐 NGINX (Gateway)
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    ports:
+      - "8181:80"
+    volumes:
+      - ./nginx:/etc/nginx/conf.d
+      - ./:/var/www
+    depends_on:
+      - app
+
+  # 🧠 Laravel App
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: laravel_app
+    volumes:
+      - ./:/var/www
+    depends_on:
+      - db
+      - redis
+
+  # ⚙️ Queue Worker
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: worker
+    command: php artisan queue:work
+    volumes:
+      - ./:/var/www
+    depends_on:
+      - app
+      - redis
+
+  # 🐘 PostgreSQL + PostGIS
+  db:
+    image: postgis/postgis:15-3.3
+    container_name: postgres
+    restart: always
+    environment:
+      POSTGRES_DB: smartcity
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: root
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  # ⚡ Redis
+  redis:
+    image: redis:alpine
+    container_name: redis
+    ports:
+      - "6380:6379"
+
+  # 🔍 Meilisearch — pindah ke 7701 (7700 sudah terpakai)
+  meili:
+    image: getmeili/meilisearch
+    container_name: meilisearch
+    ports:
+      - "7701:7700"
+    environment:
+      MEILI_NO_ANALYTICS: "true"
+
+  # 🤖 AI Service (FastAPI) — 8000 sudah aktif
+  ai:
+    build:
+      context: ./ai
+    container_name: ai_service
+    ports:
+      - "8000:8000"
+
+  # 🗺️ OSRM Routing — aktif dengan data Maluku
+  osrm:
+    image: osrm/osrm-backend
+    container_name: osrm
+    command: osrm-routed --algorithm mld /data/maluku-utara-latest.osrm
+    volumes:
+      - ./osrm:/data
+    ports:
+      - "5001:5000"
+
+  # 🚀 Soketi (Realtime WebSockets) — 6001 sudah aktif dari deployment sebelumnya
+  soketi:
+    image: quay.io/soketi/soketi:latest
+    container_name: soketi
+    ports:
+      - "6001:6001"
+    environment:
+      SOKETI_DEFAULT_APP_ID: app
+      SOKETI_DEFAULT_APP_KEY: key
+      SOKETI_DEFAULT_APP_SECRET: secret
+
+volumes:
+  pgdata:
