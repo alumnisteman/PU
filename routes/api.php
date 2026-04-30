@@ -102,7 +102,7 @@ Route::post('/roads/register', function(Request $request) {
                     'length_km' => $length_km,
                     'condition' => $condition,
                     'geometry' => json_encode(['type' => 'Point', 'coordinates' => [(float)$lng, (float)$lat]]),
-                    'geom' => \Illuminate\Support\Facades\DB::raw("ST_SRID(ST_GeomFromText('POINT($lng $lat)'), 4326)"),
+                    'geom' => \Illuminate\Support\Facades\DB::raw("ST_SRID(ST_GeomFromText('LINESTRING($lng $lat, $lng $lat)'), 4326)"),
                     'updated_at' => now(),
                     'created_at' => \Illuminate\Support\Facades\DB::raw('COALESCE(created_at, NOW())')
                 ]
