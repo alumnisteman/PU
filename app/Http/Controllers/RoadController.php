@@ -78,147 +78,122 @@ class RoadController extends Controller
     public function dashboard(Request $request)
     {
         $searchQuery = $request->q;
-        $cacheKey = 'dashboard_data_' . ($searchQuery ?: 'none');
+        $cacheKey = 'dashboard_data_v2_' . ($searchQuery ?: 'none');
 
-        // Cache heavy stats and priority roads for 60 seconds
-        $cachedData = Cache::remember($cacheKey, 30, function() use ($searchQuery) {
-            // 1. Statistics from roads (THE SOURCE OF TRUTH)
-            $assetStats = DB::table('roads')
-                ->select('condition', DB::raw('count(*) as count'))
-                ->groupBy('condition')
-                ->get();
-
-            $stats = [
-                'baik' => 0, 'sedang' => 0, 'rusak_ringan' => 0, 'rusak_berat' => 0, 'total_km' => 0, 'total_ruas' => 0
-            ];
-
-            foreach ($assetStats as $s) {
-                $cond = strtolower($s->condition);
-                if (isset($stats[$cond])) {
-                    $stats[$cond] = $s->count;
-                }
-            }
-            
-            $stats['total_ruas'] = DB::table('roads')->count();
-            $stats['total_km'] = $stats['total_ruas'] * 1.2; // Estimasi atau ambil dari length jika ada
-            $stats['rusak'] = $stats['rusak_ringan'] + $stats['rusak_berat'];
-
-            // 2. Priority Roads from road_assets
-            $roadsData = collect();
-            if (!empty($searchQuery)) {
-                $roads = Road::where('name', 'LIKE', "%{$searchQuery}%")
-                    ->orWhere('code', 'LIKE', "%{$searchQuery}%")
-                    ->orderBy('name')
-                    ->limit(20)
+        try {
+            return Cache::remember($cacheKey, 10, function() use ($searchQuery) {
+                // 1. Stats from road_assets
+                $assetStats = DB::table('road_assets')
+                    ->select('condition_status', DB::raw('count(*) as count'))
+                    ->groupBy('condition_status')
                     ->get();
-                $roadsData = $roads->map(fn($r) => [
-                    'id' => $r->id, 
-                    'name' => $r->name, 
-                    'code' => $r->code, 
-                    'condition' => $r->condition, 
-                    'priority_score' => $r->priority_score,
-                    'lat' => $r->lat,
-                    'lng' => $r->lng
-                ]);
-            } else {
-                // 2. Priority Roads from road_assets with dynamic scoring & grouping
-            $roadsData = DB::table('road_assets')
-                ->leftJoin('roads', 'road_assets.road_name', '=', 'roads.name')
-                ->select(
-                    'road_assets.road_name as asset_name', 
-                    DB::raw('MAX(road_assets.road_code) as road_code'),
-                    DB::raw('MAX(road_assets.condition_status) as condition_status'),
-                    DB::raw('SUM(road_assets.length_km) as total_length'),
-                    DB::raw('AVG(COALESCE(NULLIF(road_assets.width_m, 0), 6)) as avg_width'),
-                    DB::raw('MAX(road_assets.latitude) as lat'),
-                    DB::raw('MAX(road_assets.longitude) as lng'),
-                    DB::raw('MAX(roads.geometry) as geometry'),
-                    DB::raw('
-                        MAX(CASE 
-                            WHEN LOWER(road_assets.condition_status) = "rusak_berat" THEN 90
-                            WHEN LOWER(road_assets.condition_status) = "rusak_ringan" THEN 70
-                            WHEN LOWER(road_assets.condition_status) = "rusak" THEN 80
-                            WHEN LOWER(road_assets.condition_status) = "sedang" THEN 40
-                            ELSE 10 
-                        END) as priority_score
-                    ')
-                )
-                ->groupBy('road_assets.road_name')
-                ->orderByDesc('priority_score')
-                ->limit(100)
-                ->get()
-                ->map(fn($r) => [
-                    'id' => $r->asset_name,
-                    'name' => $r->asset_name, 
-                    'code' => $r->road_code, 
-                    'condition' => strtolower($r->condition_status), 
-                    'priority_score' => $r->priority_score,
-                    'estimated_budget' => round($r->total_length * $r->avg_width * 1000 * 250000, 0),
-                    'lat' => $r->lat,
-                    'lng' => $r->lng,
-                    'geometry' => $r->geometry ? json_decode($r->geometry) : null
-                ]);
-            }
 
-            // 3. Village Stats from road_assets joined with regions
-            $villageStats = DB::table('road_assets')
-                ->join('regions', 'road_assets.region_id', '=', 'regions.id')
-                ->select('regions.district as name', 
-                         DB::raw('SUM(length_km) as total_km'), 
-                         DB::raw('SUM(CASE WHEN condition_status = "rusak" THEN length_km ELSE 0 END) as rusak_km'))
-                ->groupBy('regions.district')
-                ->orderByDesc('rusak_km')
-                ->limit(5)
-                ->get()
-                ->map(fn($v) => [
-                    'name' => $v->name,
-                    'total_km' => round($v->total_km, 2),
-                    'rusak_km' => round($v->rusak_km, 2),
-                    'percent' => $v->total_km > 0 ? round(($v->rusak_km / $v->total_km) * 100, 1) : 0
-                ]);
+                $stats = ['baik' => 0, 'sedang' => 0, 'rusak_ringan' => 0, 'rusak_berat' => 0, 'total_km' => 0, 'total_ruas' => 0];
+                foreach ($assetStats as $s) {
+                    $c = strtolower($s->condition_status);
+                    if (isset($stats[$c])) $stats[$c] = $s->count;
+                }
+                $stats['total_ruas'] = DB::table('road_assets')->count();
+                $stats['total_km'] = DB::table('road_assets')->sum('length_km');
+                $stats['rusak'] = ($stats['rusak_ringan'] ?? 0) + ($stats['rusak_berat'] ?? 0);
 
-            return [
-                'total_km'        => $stats['total_km'],
-                'total_ruas'      => $stats['total_ruas'],
-                'condition_stats' => $stats,
-                'priority_roads'  => $roadsData->values(),
-                'village_stats'   => $villageStats,
-                'damaged_roads'   => DB::table('road_assets')
-                    ->whereIn(DB::raw('LOWER(condition_status)'), ['rusak', 'rusak_ringan', 'rusak_berat'])
-                    ->select('id', 'road_name as name', 'latitude as lat', 'longitude as lng', 'condition_status as condition')
-                    ->get(),
-                'damage_reports' => (!empty($searchQuery)) ? $roadsData->values() : DamageReport::with(['photos.aiAnalysis', 'roadAsset'])
-                    ->latest()
-                    ->limit(10)
+                // 2. Priority Roads with Geometry
+                $query = DB::table('road_assets')
+                    ->leftJoin('roads', 'road_assets.road_name', '=', 'roads.name')
+                    ->select(
+                        'road_assets.road_name as asset_name', 
+                        DB::raw('MAX(road_assets.road_code) as road_code'),
+                        DB::raw('MAX(road_assets.condition_status) as condition_status'),
+                        DB::raw('SUM(road_assets.length_km) as total_length'),
+                        DB::raw('AVG(COALESCE(NULLIF(road_assets.width_m, 0), 6)) as avg_width'),
+                        DB::raw('MAX(road_assets.latitude) as lat'),
+                        DB::raw('MAX(road_assets.longitude) as lng'),
+                        DB::raw('MAX(roads.geometry) as geometry'),
+                        DB::raw('
+                            MAX(CASE 
+                                WHEN LOWER(road_assets.condition_status) = "rusak_berat" THEN 90
+                                WHEN LOWER(road_assets.condition_status) = "rusak_ringan" THEN 70
+                                WHEN LOWER(road_assets.condition_status) = "rusak" THEN 80
+                                WHEN LOWER(road_assets.condition_status) = "sedang" THEN 40
+                                ELSE 10 
+                            END) as priority_score
+                        ')
+                    )
+                    ->groupBy('road_assets.road_name');
+
+                if (!empty($searchQuery)) {
+                    $query->where('road_assets.road_name', 'LIKE', "%{$searchQuery}%");
+                }
+
+                $roadsData = $query->orderByDesc('priority_score')
+                    ->limit(100)
                     ->get()
                     ->map(fn($r) => [
-                        'id' => $r->id,
-                        'name' => $r->roadAsset->road_name ?? 'Unknown',
-                        'code' => $r->roadAsset->road_code ?? 'N/A',
-                        'condition' => $r->severity,
-                        'damage_type' => $r->photos->first()?->aiAnalysis?->damage_type ?? 'Awaiting AI...',
-                        'damage_details' => [
-                            'confidence' => ($r->photos->first()?->aiAnalysis?->confidence ?? 0) . '%',
-                            'severity_score' => $r->photos->first()?->aiAnalysis?->severity_score ?? 0,
-                            'status' => $r->status
-                        ]
-                    ]),
-                'ai_stats' => DB::table('ai_analysis')
-                    ->select('damage_type', DB::raw('COUNT(*) as count'))
-                    ->groupBy('damage_type')
-                    ->pluck('count', 'damage_type')
-            ];
-        });
+                        'id' => $r->asset_name,
+                        'name' => $r->asset_name, 
+                        'code' => $r->road_code, 
+                        'condition' => strtolower($r->condition_status), 
+                        'priority_score' => $r->priority_score,
+                        'estimated_budget' => round($r->total_length * $r->avg_width * 1000 * 250000, 0),
+                        'lat' => $r->lat,
+                        'lng' => $r->lng,
+                        'geometry' => $r->geometry ? json_decode($r->geometry) : null
+                    ]);
 
-        // Merge with non-cached real-time data
-        $data = array_merge($cachedData, [
-            'roads'           => [], // Segments are loaded via /api/segments
-            'users'           => User::whereNotNull('lat')->get(['user_id as id', 'user_name as name', 'lat', 'lng', 'accuracy']),
-            'damage_reports'  => [], 
-            'search_results'  => !empty($searchQuery)
-        ]);
+                // 3. Village Stats
+                $villageStats = DB::table('road_assets')
+                    ->join('regions', 'road_assets.region_id', '=', 'regions.id')
+                    ->select('regions.district as name', 
+                             DB::raw('SUM(length_km) as total_km'), 
+                             DB::raw('SUM(CASE WHEN condition_status LIKE "rusak%" THEN length_km ELSE 0 END) as rusak_km'))
+                    ->groupBy('regions.district')
+                    ->orderByDesc('rusak_km')
+                    ->limit(5)
+                    ->get()
+                    ->map(fn($v) => [
+                        'name' => $v->name,
+                        'total_km' => round($v->total_km, 2),
+                        'rusak_km' => round($v->rusak_km, 2),
+                        'percent' => $v->total_km > 0 ? round(($v->rusak_km / $v->total_km) * 100, 1) : 0
+                    ]);
 
-        return response()->json($data);
+                return [
+                    'total_km'        => round($stats['total_km'], 2),
+                    'total_ruas'      => $stats['total_ruas'],
+                    'condition_stats' => $stats,
+                    'priority_roads'  => $roadsData->values(),
+                    'village_stats'   => $villageStats,
+                    'damaged_roads'   => DB::table('road_assets')
+                        ->where('condition_status', 'LIKE', 'rusak%')
+                        ->select('id', 'road_name as name', 'latitude as lat', 'longitude as lng', 'condition_status as condition')
+                        ->limit(50)
+                        ->get(),
+                    'damage_reports' => DamageReport::with(['photos.aiAnalysis', 'roadAsset'])
+                        ->latest()
+                        ->limit(10)
+                        ->get()
+                        ->map(fn($r) => [
+                            'id' => $r->id,
+                            'name' => $r->roadAsset->road_name ?? 'Unknown',
+                            'code' => $r->roadAsset->road_code ?? 'N/A',
+                            'condition' => $r->severity,
+                            'damage_type' => $r->photos->first()?->aiAnalysis?->damage_type ?? 'Awaiting AI...',
+                            'damage_details' => [
+                                'confidence' => ($r->photos->first()?->aiAnalysis?->confidence ?? 0) . '%',
+                                'severity_score' => $r->photos->first()?->aiAnalysis?->severity_score ?? 0,
+                                'status' => $r->status
+                            ]
+                        ]),
+                    'ai_stats' => DB::table('ai_analysis')
+                        ->select('damage_type', DB::raw('COUNT(*) as count'))
+                        ->groupBy('damage_type')
+                        ->pluck('count', 'damage_type'),
+                    'users' => User::whereNotNull('lat')->get(['user_id as id', 'user_name as name', 'lat', 'lng', 'accuracy'])
+                ];
+            });
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
     }
 
     public function updateCondition(Request $request, $id)
@@ -227,7 +202,6 @@ class RoadController extends Controller
             'condition' => 'required|in:baik,sedang,rusak_ringan,rusak_berat'
         ]);
 
-        // Check if it's a segment
         $segment = DB::table('road_segments')->where('id', $id)->first();
         if ($segment) {
             $oldCondition = $segment->condition;
@@ -242,11 +216,9 @@ class RoadController extends Controller
             ]);
 
             $this->broadcastUpdate($id, $request->condition);
-
             return response()->json(['success' => true]);
         }
 
-        // Legacy road support
         $road = Road::find($id);
         if ($road) {
             $oldCondition = $road->condition;
@@ -262,7 +234,6 @@ class RoadController extends Controller
             ]);
 
             $this->broadcastUpdate($id, $road->condition);
-
             return response()->json(['success' => true]);
         }
 
@@ -272,10 +243,7 @@ class RoadController extends Controller
     private function broadcastUpdate($roadId, $condition, array $extra = [])
     {
         try {
-            // Clear relevant caches
             Cache::flush(); 
-            
-            // Trigger Node.js broadcast
             \Illuminate\Support\Facades\Http::timeout(2)->post('http://127.0.0.1:3000/broadcast', [
                 'event' => 'data-refresh',
                 'data' => array_merge([
@@ -284,9 +252,7 @@ class RoadController extends Controller
                     'message'   => 'Update kondisi jalan detect!'
                 ], $extra)
             ]);
-        } catch (\Exception $e) {
-            // Silently fail if node server is down
-        }
+        } catch (\Exception $e) { }
     }
 
     public function storeAsset(Request $request)
@@ -305,11 +271,7 @@ class RoadController extends Controller
         ]);
 
         DB::table('road_assets')->insert($validated);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Aset jalan berhasil ditambahkan'
-        ]);
+        return response()->json(['success' => true, 'message' => 'Aset jalan berhasil ditambahkan']);
     }
 
     public function getRegions()
@@ -317,40 +279,22 @@ class RoadController extends Controller
         return DB::table('regions')->get();
     }
 
-    /**
-     * Update kondisi road_asset langsung dari map popup.
-     * POST dari MapView.vue → update DB → broadcast ke semua dashboard.
-     */
     public function updateAssetCondition(Request $request, $id)
     {
-        $request->validate([
-            'condition' => 'required|in:baik,sedang,rusak_ringan,rusak_berat,rusak'
-        ]);
+        $request->validate(['condition' => 'required|in:baik,sedang,rusak_ringan,rusak_berat,rusak']);
 
         $asset = DB::table('road_assets')->where('id', $id)->first();
-        if (!$asset) {
-            return response()->json(['error' => 'Asset tidak ditemukan'], 404);
-        }
+        if (!$asset) return response()->json(['error' => 'Asset tidak ditemukan'], 404);
 
         $oldCondition = $asset->condition_status;
         $newCondition = $request->condition;
 
-        // Normalise: rusak_berat / rusak_ringan → simpan sebagai rusak di road_assets
-        // tapi juga simpan nilai aslinya di road_segments jika ada
-        $saveCondition = in_array($newCondition, ['rusak_berat', 'rusak_ringan']) ? $newCondition : $newCondition;
+        DB::table('road_assets')->where('id', $id)->update(['condition_status' => $newCondition]);
 
-        DB::table('road_assets')->where('id', $id)->update([
-            'condition_status' => $saveCondition
-        ]);
-
-        // Update juga road_segments yang nama-nya sama
         if ($asset->road_name) {
-            DB::table('road_segments')
-                ->where('name', $asset->road_name)
-                ->update(['condition' => $newCondition]);
+            DB::table('road_segments')->where('name', $asset->road_name)->update(['condition' => $newCondition]);
         }
 
-        // Log perubahan
         try {
             DB::table('road_logs')->insert([
                 'road_id'       => $id,
@@ -359,12 +303,9 @@ class RoadController extends Controller
                 'length_km'     => $asset->length_km ?? 0,
                 'created_at'    => now(),
             ]);
-        } catch (\Exception $e) { /* tabel mungkin belum ada */ }
+        } catch (\Exception $e) { }
 
-        // Flush cache
         Cache::flush();
-
-        // Broadcast ke semua dashboard
         $this->broadcastUpdate($id, $newCondition, [
             'asset_id' => $id,
             'name'     => $asset->road_name,
@@ -372,17 +313,9 @@ class RoadController extends Controller
             'lng'      => $asset->longitude,
         ]);
 
-        return response()->json([
-            'success'       => true,
-            'id'            => $id,
-            'old_condition' => $oldCondition,
-            'new_condition' => $newCondition,
-        ]);
+        return response()->json(['success' => true]);
     }
 
-    /**
-     * Ambil detail satu road asset untuk popup di map.
-     */
     public function getAsset($id)
     {
         $asset = DB::table('road_assets')
@@ -397,70 +330,46 @@ class RoadController extends Controller
             ->where('road_assets.id', $id)
             ->first();
 
-        if (!$asset) {
-            return response()->json(['error' => 'Not found'], 404);
-        }
-
+        if (!$asset) return response()->json(['error' => 'Not found'], 404);
         return response()->json($asset);
     }
 
-    /**
-     * Snap coordinates to the nearest road geometry using OSRM API.
-     */
     public function snapToRoad(Request $request)
     {
-        $coords = $request->input('coords'); // Array of [lng, lat]
+        $coords = $request->input('coords');
         return response()->json($this->snap($coords));
     }
 
-    /**
-     * Internal snap logic helper
-     */
     private function snap($coords)
     {
         if (!$coords || count($coords) < 1) return $coords;
-
-        $coordString = collect($coords)
-            ->map(fn($c) => $c[0].','.$c[1])
-            ->implode(';');
+        $coordString = collect($coords)->map(fn($c) => $c[0].','.$c[1])->implode(';');
 
         try {
             $osrmUrl = env('OSRM_URL', 'http://osrm:5000');
             $url = "{$osrmUrl}/match/v1/driving/{$coordString}?geometries=geojson&overview=full";
             $response = \Illuminate\Support\Facades\Http::timeout(10)->get($url);
-
             if ($response->successful() && isset($response->json()['matchings'][0])) {
-                // Returns [lng, lat] to maintain geojson compatibility
                 return $response->json()['matchings'][0]['geometry']['coordinates'];
             }
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error("OSRM Snap Error: " . $e->getMessage());
-        }
-
+        } catch (\Exception $e) { }
         return $coords;
     }
 
-    /**
-     * Call AI Service to predict road risk/priority score.
-     */
     public function predict(Road $road)
     {
         try {
             $aiUrl = env('AI_URL', 'http://ai:8000');
             $res = \Illuminate\Support\Facades\Http::timeout(5)->post($aiUrl . '/predict', [
                 "kondisi"  => $this->mapConditionToScore($road->condition),
-                "traffic"  => 70, // Default mock values if not available
+                "traffic"  => 70,
                 "rainfall" => 60,
                 "age"      => 5,
                 "reports"  => $road->damageReports()->count(),
                 "length"   => $road->length_km
             ]);
-
             return $res->json()['risk_score'] ?? 0;
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error("AI Prediction Error: " . $e->getMessage());
-            return 0;
-        }
+        } catch (\Exception $e) { return 0; }
     }
 
     private function mapConditionToScore($condition)
@@ -469,57 +378,21 @@ class RoadController extends Controller
         return $map[strtolower($condition)] ?? 50;
     }
 
-    /**
-     * Reverse Geocode coordinates to get valid Road Name and Village using PostGIS.
-     */
     private function reverseGeocode($lat, $lng)
     {
         try {
-            // 1. Find nearest road segment name
-            $road = DB::selectOne("
-                SELECT name FROM road_segments 
-                ORDER BY geom <-> ST_SetSRID(ST_Point(?, ?), 4326) 
-                LIMIT 1
-            ", [$lng, $lat]);
-
-            // 2. Find village (Kelurahan) name using spatial intersect + distance fallback for precision
-            $village = DB::selectOne("
-                SELECT nama_kelurahan FROM wil_kelurahan_tbl 
-                ORDER BY 
-                    ST_Intersects(geom, ST_SetSRID(ST_Point(?, ?), 4326)) DESC,
-                    geom <-> ST_SetSRID(ST_Point(?, ?), 4326) ASC
-                LIMIT 1
-            ", [$lng, $lat, $lng, $lat]);
-
-            $vName = $village->nama_kelurahan ?? 'Ternate';
-            
-            // Manual calibration for critical user-reported areas
-            if (in_array(strtolower($vName), ['ternate', 'unknown', ''])) {
-                if ($lat > -0.795 && $lat < -0.790 && $lng > 127.385) $vName = 'Salero';
-                if ($lat > -0.800 && $lat < -0.795 && $lng > 127.380) $vName = 'Kasturian';
-                if ($lat > -0.792 && $lat < -0.788 && $lng > 127.382) $vName = 'Soa';
-                if ($lat > -0.787 && $lat < -0.782 && $lng > 127.380) $vName = 'Soasio';
-            }
-
-            return [
-                'road_name' => $road->name ?? 'Jalan Lokal',
-                'village'   => $vName
-            ];
+            $road = DB::selectOne("SELECT name FROM road_segments ORDER BY geom <-> ST_SetSRID(ST_Point(?, ?), 4326) LIMIT 1", [$lng, $lat]);
+            $village = DB::selectOne("SELECT nama_kelurahan FROM wil_kelurahan_tbl ORDER BY ST_Intersects(geom, ST_SetSRID(ST_Point(?, ?), 4326)) DESC, geom <-> ST_SetSRID(ST_Point(?, ?), 4326) ASC LIMIT 1", [$lng, $lat, $lng, $lat]);
+            return ['road_name' => $road->name ?? 'Jalan Lokal', 'village' => $village->nama_kelurahan ?? 'Ternate'];
         } catch (\Exception $e) {
             return ['road_name' => 'Jalan Baru', 'village' => 'Maluku Utara'];
         }
     }
 
-    /**
-     * Data Heatmap untuk peta kepadatan kerusakan.
-     */
     public function getHeatmapData()
     {
         return Cache::remember('heatmap_data', 60, function() {
-            return DB::table('road_assets')
-                ->whereIn(DB::raw('LOWER(condition_status)'), ['rusak', 'rusak_ringan', 'rusak_berat'])
-                ->select('latitude as lat', 'longitude as lng', DB::raw('1 as intensity'))
-                ->get();
+            return DB::table('road_assets')->where('condition_status', 'LIKE', 'rusak%')->select('latitude as lat', 'longitude as lng', DB::raw('1 as intensity'))->get();
         });
     }
 }
