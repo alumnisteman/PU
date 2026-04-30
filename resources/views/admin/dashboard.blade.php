@@ -137,6 +137,14 @@
                     <div class="flex-1 bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl relative">
                         <div id="map" class="absolute inset-0"></div>
                         
+                        <!-- Map Floating Toggle: Register Road -->
+                        <div class="absolute top-6 left-6 z-[400]">
+                            <button id="reg-toggle-btn" onclick="toggleRegistrationMode()" class="flex items-center gap-2 px-4 py-2 bg-slate-900/90 backdrop-blur-md border border-slate-700 text-slate-300 rounded-xl font-bold text-xs uppercase tracking-widest hover:text-white hover:border-emerald-500 transition-all shadow-xl">
+                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                Register Road
+                            </button>
+                        </div>
+
                         <!-- Map Floating Legend -->
                         <div class="absolute bottom-6 left-6 z-[400] bg-slate-900/90 backdrop-blur-md border border-slate-700 p-4 rounded-xl shadow-xl">
                             <h3 class="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3">Legenda Peta</h3>
@@ -202,6 +210,23 @@
 
         let map, markersGroup, conditionChart, heatLayer;
         let workerMarkers = {};
+        let registrationMode = false;
+        let tempMarker = null;
+
+        function toggleRegistrationMode() {
+            registrationMode = !registrationMode;
+            const btn = document.getElementById('reg-toggle-btn');
+            if (registrationMode) {
+                btn.classList.add('bg-emerald-600', 'text-white', 'ring-4', 'ring-emerald-500/30');
+                btn.innerHTML = '<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg> Cancel Reg';
+                map.getContainer().style.cursor = 'crosshair';
+            } else {
+                btn.classList.remove('bg-emerald-600', 'text-white', 'ring-4', 'ring-emerald-500/30');
+                btn.innerHTML = '<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Register Road';
+                map.getContainer().style.cursor = '';
+                if(tempMarker) { map.removeLayer(tempMarker); tempMarker = null; }
+            }
+        }
 
         function initMap() {
             try {
@@ -214,7 +239,64 @@
                 
                 markersGroup = L.markerClusterGroup().addTo(map);
                 heatLayer = L.heatLayer([], {radius: 25, blur: 15, maxZoom: 17}).addTo(map);
+
+                // Handle Map Clicks for Registration
+                map.on('click', function(e) {
+                    if (!registrationMode) return;
+
+                    if (tempMarker) map.removeLayer(tempMarker);
+                    tempMarker = L.marker(e.latlng).addTo(map);
+                    
+                    const popupContent = `
+                        <div class="p-4 w-64 bg-slate-900 text-white rounded-xl shadow-2xl border border-slate-700">
+                            <h3 class="text-sm font-black uppercase tracking-widest mb-3 text-emerald-400">Daftarkan Jalan Baru</h3>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="text-[10px] font-bold text-slate-500 uppercase">Nama Jalan</label>
+                                    <input type="text" id="reg-road-name" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white mt-1 focus:ring-2 focus:ring-emerald-500 transition-all" placeholder="Masukkan nama...">
+                                </div>
+                                <div>
+                                    <label class="text-[10px] font-bold text-slate-500 uppercase">Kondisi</label>
+                                    <select id="reg-road-condition" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white mt-1">
+                                        <option value="baik">Baik</option>
+                                        <option value="sedang">Sedang</option>
+                                        <option value="rusak_ringan">Rusak Ringan</option>
+                                        <option value="rusak_berat">Rusak Berat</option>
+                                    </select>
+                                </div>
+                                <button onclick="saveNewRoad(${e.latlng.lat}, ${e.latlng.lng})" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2 rounded-lg text-xs uppercase tracking-widest transition-all shadow-lg shadow-emerald-600/20">
+                                    Simpan Aset
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    tempMarker.bindPopup(popupContent, { className: 'custom-popup', minWidth: 260 }).openPopup();
+                });
+
             } catch (e) { logError("Map Error: " + e.message); }
+        }
+
+        async function saveNewRoad(lat, lng) {
+            const name = document.getElementById('reg-road-name').value;
+            const condition = document.getElementById('reg-road-condition').value;
+
+            if (!name) { alert('Nama jalan wajib diisi!'); return; }
+
+            try {
+                const res = await fetch('/api/roads/register', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+                    body: JSON.stringify({ name, lat, lng, condition })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    alert('Jalan berhasil didaftarkan!');
+                    toggleRegistrationMode();
+                    loadData(); // Refresh dashboard
+                } else {
+                    alert('Gagal: ' + (result.error || 'Terjadi kesalahan'));
+                }
+            } catch (e) { alert('Error: ' + e.message); }
         }
 
         const workerIcon = L.divIcon({
@@ -330,7 +412,7 @@
                         const isCritical = road.condition === 'rusak_berat';
                         
                         // Focus Map on click
-                        const clickHandler = `if(window.parent && window.parent.map) { window.parent.map.setView([${road.lat || -0.7893}, ${road.lng || 127.3750}], 17, {animate:true}); }`;
+                        const clickHandler = `map.setView([${road.lat || -0.7893}, ${road.lng || 127.3750}], 17, {animate:true});`;
                         
                         listEl.innerHTML += `
                             <div class="group bg-slate-800/40 hover:bg-slate-800 border border-slate-700 hover:border-slate-600 p-3 rounded-xl cursor-pointer transition-all ${isCritical ? 'border-rose-500/30 bg-rose-500/5' : ''}" onclick="${clickHandler}">
